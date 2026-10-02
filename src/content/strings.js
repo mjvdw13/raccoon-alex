@@ -21,6 +21,7 @@ export default {
     time: 'TIME',
     par: 'PAR',
     entering: 'NOW ENTERING',
+    youAreHere: 'YOU ARE HERE',
   },
 
   skills: ['I SLEPT FINE', 'ONE MORE EPISODE', 'RED-EYE FLIGHT', 'ALL-NIGHTER', 'INSOMNIA!'],

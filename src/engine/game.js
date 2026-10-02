@@ -279,6 +279,7 @@ export class Game {
       new IntermissionScene(this, {
         level,
         next,
+        episode,
         stats: { ...world.stats },
         onDone: () => {
           if (next) this.startLevel(next.id, snapshot);

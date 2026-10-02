@@ -12,7 +12,7 @@ const pct = (a, b) => (b ? Math.floor((a * 100) / b) : 100);
 export class IntermissionScene {
   /**
    * @param {*} game
-   * @param {{level:any, next:any|null, stats:any, onDone:()=>void}} info
+   * @param {{level:any, next:any|null, episode?:any, stats:any, onDone:()=>void}} info
    */
   constructor(game, info) {
     this.game = game;
@@ -112,9 +112,52 @@ export class IntermissionScene {
         big?.draw(s, str.par ?? 'PAR', 170, y);
         big?.draw(s, clock(level.par), 290, y, { align: 'right' });
       }
+    } else if (this._hasMap()) {
+      this._drawMap();
+      small?.draw(s, str.entering ?? 'ENTERING', SCREEN_W / 2, 4, { align: 'center', remap: pal.tint('gray', 'beige'), shadow: 0 });
+      gold?.draw(s, this.info.next.name, SCREEN_W / 2, 13, { align: 'center' });
     } else {
       small?.draw(s, str.entering ?? 'ENTERING', SCREEN_W / 2, 70, { align: 'center', remap: pal.tint('gray', 'beige'), shadow: 0 });
       gold?.draw(s, this.info.next.name, SCREEN_W / 2, 84, { align: 'center' });
     }
+  }
+
+  /** Episodes can give each level a spot on the intermission picture: map: { spots: { e1m1: [x, y] } }. */
+  _hasMap() {
+    return !!this.info.episode?.map?.spots;
+  }
+
+  /** Doom-style route map: finished levels crossed out, a blinking marker on the next one. */
+  _drawMap() {
+    const s = this.game.surface;
+    const pal = this.game.palette;
+    const { levels } = this.info.episode;
+    const spots = this.info.episode.map.spots;
+    const red = pal.ramp('glow-red', 1);
+    const dark = pal.ramp('blood', 0.15);
+    const done = levels.indexOf(this.info.level.id);
+    for (let i = 0; i <= done; i++) {
+      const p = spots[levels[i]];
+      if (!p) continue;
+      const [x, y] = p;
+      for (const [dx, c] of [[1, dark], [0, red]]) {
+        s.line(x - 3 + dx, y - 3 + dx, x + 3 + dx, y + 3 + dx, c);
+        s.line(x - 3 + dx, y - 2 + dx, x + 2 + dx, y + 3 + dx, c);
+        s.line(x + 3 + dx, y - 3 + dx, x - 3 + dx, y + 3 + dx, c);
+        s.line(x + 3 + dx, y - 2 + dx, x - 2 + dx, y + 3 + dx, c);
+      }
+    }
+    const next = this.info.next && spots[this.info.next.id];
+    if (!next || Math.floor(this.time * 3) % 3 === 2) return;
+    const [x, y] = next;
+    const yellow = pal.ramp('glow-yellow', 0.6);
+    s.fillRect(x - 2, y - 2, 5, 5, yellow);
+    s.rect(x - 3, y - 3, 7, 7, dark);
+    const tiny = this.game.font('tiny');
+    const label = this.game.registry.strings.intermission?.youAreHere ?? 'YOU ARE HERE';
+    const right = x < SCREEN_W - 70;
+    const lx = right ? x + 8 : x - 8;
+    s.line(right ? x + 4 : x - 4, y, lx, y, yellow);
+    tiny?.draw(s, label, right ? lx + 2 : lx - 2, y - 2, { align: right ? 'left' : 'right', remap: pal.tint('gray', 'glow-yellow'), shadow: 0 });
   }
 }
