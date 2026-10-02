@@ -1,0 +1,133 @@
+import { TRANSPARENT } from '../config.js';
+
+/** A palette-indexed image. Pixel value 255 (TRANSPARENT) is never drawn. */
+export class IndexedImage {
+  constructor(width, height, pixels) {
+    this.width = width;
+    this.height = height;
+    this.pixels = pixels ?? new Uint8Array(width * height).fill(TRANSPARENT);
+  }
+
+  /** Magenta/black checkerboard used when an asset is missing. */
+  static placeholder(width, height, a, b) {
+    const img = new IndexedImage(width, height);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        img.pixels[y * width + x] = ((x >> 3) + (y >> 3)) & 1 ? a : b;
+      }
+    }
+    return img;
+  }
+
+  /** Copy of a sub-rectangle. */
+  crop(sx, sy, w, h) {
+    const out = new IndexedImage(w, h);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const px = sx + x;
+        const py = sy + y;
+        if (px >= 0 && py >= 0 && px < this.width && py < this.height) {
+          out.pixels[y * w + x] = this.pixels[py * this.width + px];
+        }
+      }
+    }
+    return out;
+  }
+}
+
+const BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+
+/**
+ * Convert RGBA pixels into palette indices. Alpha < 128 and pure magenta
+ * (#FF00FF) become transparent. `dither` (0..64) adds ordered Bayer dithering,
+ * which gives photos a crunchy 80s look.
+ * @param {{width:number, height:number, data: Uint8ClampedArray|Uint8Array}} rgba
+ * @param {import('./palette.js').Palette} palette
+ */
+export function quantize(rgba, palette, { dither = 0, litOnly = false } = {}) {
+  const { width, height, data } = rgba;
+  const out = new Uint8Array(width * height);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = y * width + x;
+      const o = i * 4;
+      let r = data[o];
+      let g = data[o + 1];
+      let b = data[o + 2];
+      if (data[o + 3] < 128 || (r === 255 && g === 0 && b === 255)) {
+        out[i] = TRANSPARENT;
+        continue;
+      }
+      if (dither) {
+        const d = (BAYER4[(y & 3) * 4 + (x & 3)] / 16 - 0.5) * dither;
+        r = Math.max(0, Math.min(255, r + d)) | 0;
+        g = Math.max(0, Math.min(255, g + d)) | 0;
+        b = Math.max(0, Math.min(255, b + d)) | 0;
+      }
+      out[i] = palette.lookup(r, g, b, litOnly);
+    }
+  }
+  return new IndexedImage(width, height, out);
+}
+
+/** Load an <img>. Resolves with the element once decoded. */
+export function loadImageElement(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`Could not load image "${src}"`));
+    img.src = src;
+  });
+}
+
+function makeCanvas(w, h) {
+  if (typeof OffscreenCanvas !== 'undefined') return new OffscreenCanvas(w, h);
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  return c;
+}
+
+/** Read RGBA pixels from an image element, optionally cropped. */
+export function readPixels(img, crop) {
+  const [sx, sy, sw, sh] = crop ?? [0, 0, img.naturalWidth || img.width, img.naturalHeight || img.height];
+  const canvas = makeCanvas(sw, sh);
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+  return ctx.getImageData(0, 0, sw, sh);
+}
+
+/** Box-filter downscale of RGBA data (good quality for shrinking photos). */
+export function downscale(rgba, w, h) {
+  const { width: sw, height: sh, data } = rgba;
+  const out = new Uint8ClampedArray(w * h * 4);
+  for (let y = 0; y < h; y++) {
+    const y0 = Math.floor((y * sh) / h);
+    const y1 = Math.max(y0 + 1, Math.floor(((y + 1) * sh) / h));
+    for (let x = 0; x < w; x++) {
+      const x0 = Math.floor((x * sw) / w);
+      const x1 = Math.max(x0 + 1, Math.floor(((x + 1) * sw) / w));
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let a = 0;
+      let n = 0;
+      for (let yy = y0; yy < y1; yy++) {
+        for (let xx = x0; xx < x1; xx++) {
+          const o = (yy * sw + xx) * 4;
+          r += data[o];
+          g += data[o + 1];
+          b += data[o + 2];
+          a += data[o + 3];
+          n++;
+        }
+      }
+      const o = (y * w + x) * 4;
+      out[o] = r / n;
+      out[o + 1] = g / n;
+      out[o + 2] = b / n;
+      out[o + 3] = a / n;
+    }
+  }
+  return { width: w, height: h, data: out };
+}

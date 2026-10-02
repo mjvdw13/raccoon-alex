@@ -1,0 +1,5 @@
+node_modules/
+tools/art/out/
+.smoke/
+*.log
+.DS_Store

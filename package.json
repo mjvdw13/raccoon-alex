@@ -1,0 +1,19 @@
+{
+  "name": "raccoon-alex",
+  "version": "1.0.0",
+  "description": "A gritty 80s-style browser FPS about the most sleep-deprived man in the office.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "serve": "npx --yes http-server -c-1 -p 8080 .",
+    "test": "node --test tests/",
+    "validate": "node tools/validate.mjs",
+    "check": "node --test tests/ && node tools/validate.mjs",
+    "art": "node tools/art/generate.mjs",
+    "smoke": "node tools/smoke.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}
