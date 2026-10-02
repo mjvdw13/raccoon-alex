@@ -94,8 +94,8 @@ export default [
     id: 'benny',
     name: 'BENNY',
     glyph: '0',
-    sheet: S('benny'),
-    scale: 0.5,
+    // Hand-drawn pixel art at 1:1 (tools/art/sprites/people/benny.js).
+    sheet: { src: 'assets/sprites/coworkers/benny.png', frameWidth: 64, frameHeight: 64 },
     height: 0.55,
     radius: 0.24,
     wander: 3,

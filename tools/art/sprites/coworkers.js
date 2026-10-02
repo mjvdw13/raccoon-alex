@@ -4,7 +4,7 @@
 // own face, taken from a photo in assets/custom/coworkers/ and mapped onto the
 // head by matching two points (usually the eyes).
 //
-// Gus is the exception: he's hand-drawn pixel art (people/gus.js), 64x64
+// Gus and Benny are the exception: they're hand-drawn pixel art (people/), 64x64
 // frames drawn 1:1. The others will follow.
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +15,7 @@ import { skeleton, body } from '../lib/rig.js';
 import { sheet } from '../lib/sprite.js';
 import { loadPhoto, pointMap, skinTone } from '../lib/photo.js';
 import { gusSheet } from './people/gus.js';
+import { bennySheet } from './people/benny.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const photo = (name) => loadPhoto(path.join(root, `assets/custom/coworkers/${name}.png`));
@@ -214,91 +215,6 @@ function terry() {
   );
 }
 
-// ------------------------------------------------------------------ Benny
-// In his Mike Wazowski costume. Just happy to be there.
-
-function benny() {
-  const face = photo('benny');
-  // His photo is pale and pink, which dithers into grey speckles: warm it up.
-  const warm = (c) => skinTone(c).map((v, i) => v * 0.7 + c[i] * 0.3);
-  const green = mix(C('toxic', 0.55), C('olive', 0.7), 0.25);
-  const satin = { ...MAT.cloth, spec: 0.35, shine: 16, grain: 0.05 };
-  const draw = (pose) => {
-    const m = new Model(W, H, { seed: 705 });
-    const J = joints(pose, { height: 66, build: 1.15 });
-    const s = J.s;
-    body(m, J, {
-      skin: C('skin', 0.74),
-      shirt: green,
-      shirtMat: satin,
-      sleeve: 'long',
-      pants: green,
-      pantsMat: satin,
-      shoes: green,
-      shoeMat: satin,
-      hands: C('skin', 0.74),
-      head(mm, j) {
-        // Kids' heads are big for their bodies: model it 1.2x and lift it to match.
-        const k = 1.2 * s;
-        const [hx, hy0, hz] = j.head;
-        const hy = hy0 - 1.1 * s;
-        mm.ellipsoid(hx, hy - 0.6 * k, hz - 1.6 * k, 7.2 * k, 7.8 * k, 5.6 * k, green, satin); // hood
-        mm.capsule(hx + 2.6 * k, hy - 7 * k, hz - 2 * k, hx + 3.4 * k, hy - 10 * k, hz - 2.4 * k, 1 * k, 0.45 * k, C('gray', 0.62), MAT.plastic); // horns
-        mm.capsule(hx - 2.6 * k, hy - 7 * k, hz - 2 * k, hx - 3.2 * k, hy - 9.4 * k, hz - 2.4 * k, 0.9 * k, 0.4 * k, C('gray', 0.62), MAT.plastic);
-        mm.ellipsoid(hx, hy + 0.4 * k, hz + 0.4 * k, 5.1 * k, 6.1 * k, 4.8 * k, C('beige', 0.95), MAT.cloth); // white lining
-        mm.ellipsoid(hx, hy + 0.4 * k, hz + 0.9 * k, 4.3 * k, 5.2 * k, 4.7 * k, C('skin', 0.74), MAT.skin);
-        photoFace(mm, { ...j, s: k, head: [hx, hy, hz] }, face, [[[41, 85.5], [-1.75, -0.1]], [[85, 85.5], [1.75, -0.1]]], { center: [0, 1.2], radius: [4.2, 5], level: 138, colorize: warm });
-      },
-      clothes(mm, j) {
-        // Mike's body is one big green eyeball-shaped costume with a grin.
-        const [bx, by] = j.belly;
-        mm.ellipsoid(bx, by - 1.5 * s, 2.6 * s, 9.5 * s, 10.5 * s, 6 * s, green, satin);
-        const top = by - 6.2 * s;
-        const mouth = [];
-        for (let k = 0; k <= 10; k++) mouth.push([bx - 7 * s + k * 1.4 * s, top + Math.sin((k / 10) * Math.PI) * 3.4 * s]);
-        for (let k = 10; k >= 0; k--) mouth.push([bx - 7 * s + k * 1.4 * s, top - 0.6 * s + Math.sin((k / 10) * Math.PI) * 0.6 * s]);
-        mm.paintPoly(mouth, C('blood', 0.22));
-        for (let k = 0; k < 7; k++) {
-          const x = bx - 5.6 * s + k * 1.85 * s;
-          const y = top - 0.4 * s + Math.sin(((k + 0.5) / 7) * Math.PI) * 0.6 * s;
-          mm.paintPoly([[x, y], [x + 1.5 * s, y], [x + 0.75 * s, y + 1.4 * s]], C('beige', 0.95));
-        }
-      },
-      held(mm, j) {
-        // Plastic jack-o'-lantern candy bucket.
-        const [x, y, z] = j.handL;
-        const cy = y + 4.2 * s;
-        mm.ellipsoid(x - 0.5 * s, cy, z + 2, 3.6 * s, 3.3 * s, 3.4 * s, C('orange', 0.6), MAT.plastic);
-        mm.capsule(x - 3.4 * s, cy - 2 * s, z + 2, x, y - 0.6 * s, z + 3, 0.3 * s, 0.3 * s, C('gray', 0.2), MAT.plastic);
-        mm.capsule(x + 2.4 * s, cy - 2 * s, z + 2, x, y - 0.6 * s, z + 3, 0.3 * s, 0.3 * s, C('gray', 0.2), MAT.plastic);
-        for (const side of [-1, 1]) mm.paintPoly([[x - 0.5 * s + side * 0.6 * s, cy - 1 * s], [x - 0.5 * s + side * 2 * s, cy - 1 * s], [x - 0.5 * s + side * 1.3 * s, cy]], C('gray', 0.06));
-        mm.paint(x - 0.5 * s, cy + 1.2 * s, 2 * s, 0.6 * s, C('gray', 0.06));
-      },
-    });
-    return m;
-  };
-  const bucket = { spread: 14, bend: 22 };
-  const wave = { reachChest: [8, -12, 3] };
-  const walk = (k) => {
-    const t = [18, 4, -10, 4][k];
-    const u = [-10, 4, 18, 4][k];
-    return { armL: bucket, armR: { spread: 14, swing: [-20, 0, 20, 0][k], bend: 25 }, bob: k % 2 ? -1.2 : 0, x: [-0.6, 0, 0.6, 0][k], legL: { thigh: t, knee: t > 10 ? 24 : 6 }, legR: { thigh: u, knee: u > 10 ? 24 : 6 } };
-  };
-  return frames(
-    [
-      { armL: bucket, armR: { spread: 12, bend: 16 } },
-      { armL: bucket, armR: wave, bob: -2 }, // bounce and wave
-      { armL: bucket, armR: { spread: 16, bend: 30 }, bob: 0.6 },
-      walk(0),
-      walk(1),
-      walk(2),
-      walk(3),
-      { armL: { reachChest: [-8, -13, 3] }, armR: { reachChest: [8, -13, 3] }, bob: -6 }, // yay!
-    ],
-    draw,
-  );
-}
-
 // ------------------------------------------------------------------ speech bubbles
 
 /** Little speech bubbles that pop up when a coworker reacts. */
@@ -333,6 +249,6 @@ export default [
   { name: 'coworker-vera', out: OUT('vera'), draw: vera, dither: 'fs' },
   { name: 'coworker-gus', out: OUT('gus'), draw: gusSheet }, // hand-drawn pixel art (people/gus.js)
   { name: 'coworker-terry', out: OUT('terry'), draw: terry, dither: 'fs' },
-  { name: 'coworker-benny', out: OUT('benny'), draw: benny, dither: 'fs' },
+  { name: 'coworker-benny', out: OUT('benny'), draw: bennySheet }, // hand-drawn pixel art (people/benny.js)
   { name: 'speech-bubbles', out: 'assets/sprites/fx/bubbles.png', draw: bubbles },
 ];
