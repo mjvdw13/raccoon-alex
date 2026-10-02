@@ -15,6 +15,9 @@ export class FinaleScene {
     const font = game.font('small');
     this.lines = font ? font.wrap(this.finale.text ?? '', SCREEN_W - 40) : [];
     this.totalChars = this.lines.reduce((n, l) => n + l.length, 0);
+    // Fit the crawl on screen: tighten the leading if needed, then centre it.
+    this.lineH = this.lines.length * 10 + 16 <= SCREEN_H ? 10 : 9;
+    this.top = Math.max(6, Math.floor((SCREEN_H - this.lines.length * this.lineH) / 2));
   }
 
   enter() {
@@ -55,7 +58,7 @@ export class FinaleScene {
         if (budget <= 0) return;
         const part = line.slice(0, budget);
         budget -= line.length;
-        font?.draw(s, part, 20, 14 + i * 10, { remap, shadow: 0 });
+        font?.draw(s, part, 20, this.top + i * this.lineH, { remap, shadow: 0 });
       });
     } else {
       const img = g.assets.image(this.finale.endImage ?? 'finale-end');

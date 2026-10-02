@@ -125,7 +125,7 @@ export class Hud {
       const remap = this._tint('glow-yellow');
       tiny?.draw(s, a.short ?? a.id.slice(0, 4).toUpperCase(), tx + 3, y, { remap: labelTint });
       tiny?.draw(s, String(have), tx + 41, y, { align: 'right', remap });
-      tiny?.draw(s, '/', tx + 43, y, { remap: labelTint });
+      tiny?.draw(s, '/', tx + 45, y, { remap: labelTint });
       tiny?.draw(s, String(p.maxAmmo[a.id] ?? a.max), tx + tw - 3, y, { align: 'right', remap });
       if (++row >= 4) break;
     }
