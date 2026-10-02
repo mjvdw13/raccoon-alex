@@ -146,8 +146,8 @@ function staplesClip() {
 
 function staplesBox() {
   const c = model(32, 24, 215, (m) => {
-    shadow(m, 16, 23, 14);
-    box(m, 3, 9, 26, 13, 5, C('orange', 0.5), MAT.paper, { topCol: C('orange', 0.6) });
+    shadow(m, 16, 23, 15);
+    box(m, 1, 9, 30, 13, 5, C('orange', 0.5), MAT.paper, { topCol: C('orange', 0.6) });
   });
   tinyText(c, 'STAPLES', 3, 13, C('gray', 0.1));
   return c;

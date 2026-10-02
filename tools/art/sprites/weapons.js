@@ -140,28 +140,33 @@ function stapleGunSheet() {
 function shotgunFrame({ fire = false, pump = 0, kick = 0 } = {}) {
   const m = new Model(128, 96, { seed: 107 });
   const cx = 64;
-  const y = 10 + kick;
-  // Barrel and the clear magazine tube full of thumbtacks.
-  m.capsule(cx, 112, 34, cx, y + 6, 2, 10, 4.6, C('steel', 0.32), MAT.metal);
-  m.capsule(cx + 1, 112, 44, cx + 1, y + 22, 8, 8.5, 3.6, C('steel', 0.6), MAT.glass);
-  for (let t = 0; t < 10; t++) {
-    const ty = y + 26 + t * 7.4;
-    const w = 2.4 + t * 0.55;
-    m.paint(cx + 1, ty, w, 1.4, [C('blood', 0.6), C('steel', 0.75), C('yellow', 0.7)][t % 3], MAT.plastic);
-    m.paint(cx + 1, ty + 1.8, 0.6, 1, C('gray', 0.75), MAT.metal);
+  const top = 9 + kick;
+  // Seen from behind and a little above: the barrel and a clear magazine tube
+  // full of thumbtacks run side by side toward the crosshair.
+  const lerp = (a, b, t) => a + (b - a) * t;
+  m.slab([[cx - 21, 76 + kick], [cx + 21, 76 + kick], [cx + 26, 98], [cx - 26, 98]], 26, C('gray', 0.2), MAT.metal, { bevel: 4, thickness: 3, tilt: [0, -0.7] });
+  m.paint(cx + 6, 82 + kick, 6, 2, C('gray', 0.04)); // ejection port
+  m.capsule(cx + 10, 98, 22, cx + 3.5, top + 12, 6, 6.6, 3.2, C('steel', 0.62), MAT.glass);
+  for (let k = 0; k < 11; k++) {
+    const t = k / 11;
+    const y = lerp(92, top + 16, t);
+    const x = lerp(cx + 10, cx + 3.5, (98 - y) / (98 - top - 12));
+    m.paint(x, y, lerp(4.4, 2.2, t), lerp(2, 1.1, t), [C('blood', 0.6), C('yellow', 0.7), C('steel', 0.78)][k % 3], MAT.plastic);
   }
-  m.paint(cx, y + 6, 3.4, 2, C('gray', 0.04));
-  // Wooden pump.
-  const py = 52 + pump;
-  m.capsule(cx, py, 30, cx, py + 22, 36, 14, 16, C('rust', 0.3), MAT.wood);
-  for (let k = 0; k < 4; k++) m.paint(cx, py + 4 + k * 5, 14, 0.7, C('rust', 0.16));
-  // Hands.
-  forearm(m, [16, 118, 40], [cx - 10, py + 16, 40], 10);
-  fist(m, cx - 9, py + 10, 42, 8, 1);
-  forearm(m, [120, 120, 40], [cx + 30, 92, 36], 10);
-  fist(m, cx + 24, 86, 38, 8.5, -1);
+  m.capsule(cx - 4, 98, 30, cx - 0.5, top, 4, 7, 3.4, C('steel', 0.3), MAT.metal);
+  m.paint(cx - 0.5, top + 0.8, 2.3, 1.6, C('gray', 0.02));
+  m.sphere(cx - 0.5, top + 5, 6, 1.3, C('steel', 0.8), MAT.metal); // front sight
+  // Wooden pump around the tube, under the barrel; it slides toward us when racked.
+  const py = 44 + pump;
+  const w0 = 12 - pump * 0.05;
+  m.slab([[cx - w0 + 1, py], [cx + w0 + 3, py], [cx + w0 + 6, py + 22], [cx - w0 - 3, py + 22]], 20.5, C('rust', 0.3), MAT.wood, { bevel: 3.5, thickness: 3, tilt: [0, -0.35] });
+  // Hands: the left cups the pump, the right holds the grip.
+  forearm(m, [6, 122, 30], [cx - 18, py + 18, 34], 10);
+  fist(m, cx - 15, py + 12, 36, 8, 1);
+  forearm(m, [126, 124, 26], [cx + 32, 94, 30], 10);
+  fist(m, cx + 28, 90, 32, 8.5, -1);
   const c = render(m);
-  if (fire) flash(c, cx, y + 2, 20, G('yellow', 1), G('yellow', 0.4));
+  if (fire) flash(c, cx - 0.5, top - 3, 16, G('yellow', 1), G('yellow', 0.4));
   return c;
 }
 
