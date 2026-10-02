@@ -3,6 +3,9 @@
 // (128x128 frames, drawn at half scale in the game), and each one wears their
 // own face, taken from a photo in assets/custom/coworkers/ and mapped onto the
 // head by matching two points (usually the eyes).
+//
+// Gus is the exception: he's hand-drawn pixel art (people/gus.js), 64x64
+// frames drawn 1:1. The others will follow.
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mix, darken } from '../lib/canvas.js';
@@ -11,6 +14,7 @@ import { Model, MAT } from '../lib/model.js';
 import { skeleton, body } from '../lib/rig.js';
 import { sheet } from '../lib/sprite.js';
 import { loadPhoto, pointMap, skinTone } from '../lib/photo.js';
+import { gusSheet } from './people/gus.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const photo = (name) => loadPhoto(path.join(root, `assets/custom/coworkers/${name}.png`));
@@ -153,91 +157,6 @@ function vera() {
       walk(2),
       walk(3),
       { headTilt: 1.2, lean: -1, armL: { spread: 8, bend: 8 }, armR: { reachChest: [6.8, 9.6, 1] } }, // hand on hip
-    ],
-    draw,
-  );
-}
-
-// ------------------------------------------------------------------ Gus
-// On the phone. In a pumpkin costume. Pacing.
-
-function gus() {
-  const face = photo('gus');
-  const orange = C('orange', 0.55);
-  const green = C('toxic', 0.32);
-  const draw = (pose) => {
-    const m = new Model(W, H, { seed: 703 });
-    const J = joints(pose, { height: 100, build: 1.05 });
-    const s = J.s;
-    body(m, J, {
-      skin: C('skin', 0.66),
-      shirt: C('gray', 0.24),
-      sleeve: 'short',
-      pants: mix(C('steel', 0.36), C('navy', 0.5), 0.4),
-      shoes: C('gray', 0.12),
-      head(mm, j) {
-        const [hx, hy, hz] = j.head;
-        mm.ellipsoid(hx, hy - 1 * s, hz - 1.8 * s, 6 * s, 7 * s, 5 * s, orange, MAT.cloth); // pumpkin hood
-        mm.capsule(hx + 0.4 * s, hy - 7.4 * s, hz - 2 * s, hx + 1.6 * s, hy - 11 * s, hz - 2.4 * s, 1.2 * s, 0.5 * s, green, MAT.cloth); // stem
-        mm.ellipsoid(hx, hy, hz, 4.2 * s, 5.1 * s, 4.6 * s, C('skin', 0.66), MAT.skin);
-        mm.ellipsoid(hx, hy + 2.6 * s, hz + 0.6, 3.1 * s, 2.3 * s, 3.4 * s, C('skin', 0.66), MAT.skin);
-        mm.ellipsoid(hx, hy + 0.6 * s, hz + 4.1 * s, 0.9 * s, 1.4 * s, 1.2 * s, C('skin', 0.66), MAT.skin);
-        photoFace(mm, j, face, [[[37, 54], [-1.7, -0.3]], [[77, 54], [1.7, -0.3]]], { center: [0, 1.2], radius: [3.9, 5.1], level: 150 });
-      },
-      clothes(mm, j) {
-        // The pumpkin: a round, ribbed orange body with a jack-o'-lantern face.
-        const [bx, by] = j.belly;
-        const cy = by - 2.4 * s;
-        mm.ellipsoid(bx, cy, 3 * s, 9 * s, 10 * s, 5.6 * s, orange, MAT.cloth);
-        for (const k of [-6, -3, 3, 6]) mm.stroke(bx + k * s, cy - 8.5 * s, bx + k * 1.1 * s, cy + 8.5 * s, 0.5 * s, darken(orange, 0.25));
-        const dark = C('gray', 0.05);
-        for (const side of [-1, 1]) mm.paintPoly([[bx + side * 1.6 * s, cy - 4.6 * s], [bx + side * 5 * s, cy - 4.6 * s], [bx + side * 3.3 * s, cy - 1.8 * s]], dark);
-        mm.paintPoly([[bx - 0.9 * s, cy - 1 * s], [bx + 0.9 * s, cy - 1 * s], [bx, cy + 0.6 * s]], dark);
-        const mouth = [];
-        for (let k = 0; k <= 8; k++) mouth.push([bx - 5 * s + k * 1.25 * s, cy + 2 * s + (k % 2 ? 1.2 * s : 0) + Math.sin((k / 8) * Math.PI) * 1.6 * s]);
-        for (let k = 8; k >= 0; k--) mouth.push([bx - 5 * s + k * 1.25 * s, cy + 4.6 * s + Math.sin((k / 8) * Math.PI) * 1.6 * s]);
-        mm.paintPoly(mouth, dark);
-        // Leafy green collar.
-        const [nx, ny, nz] = j.neck;
-        for (let k = -2; k <= 2; k++) mm.ellipsoid(nx + k * 2.2 * s, ny + 2.4 * s + Math.abs(k) * 0.5 * s, nz + 2.4 * s, 2.4 * s, 1.5 * s, 1.4 * s, green, MAT.cloth);
-      },
-      held(mm, j) {
-        if (!pose.phone) return;
-        // Desk phone handset pressed to his ear over the hood, coiled cord below.
-        const [hx, hy, hz] = j.head;
-        const black = C('gray', 0.08);
-        const ear = [hx + 4.7 * s, hy - 0.4 * s, hz + 1.8 * s];
-        const mouth = [hx + 3.1 * s, hy + 5.4 * s, hz + 3.6 * s];
-        mm.capsule(...ear, ...mouth, 0.85 * s, 0.85 * s, black, MAT.plastic);
-        mm.ellipsoid(...ear, 1.3 * s, 1.7 * s, 1.1 * s, black, MAT.plastic);
-        mm.ellipsoid(...mouth, 1.3 * s, 1.6 * s, 1.1 * s, black, MAT.plastic);
-        for (let k = 0; k < 18; k++) {
-          const t = k / 17;
-          mm.sphere(mouth[0] + Math.sin(t * 22) * 0.9 * s + t * 1.5 * s, mouth[1] + 1.6 * s + t * 14 * s, mouth[2] + 0.5 * s - t * 1.5 * s, 0.45 * s, C('gray', 0.1), MAT.plastic);
-        }
-        if (pose.finger) {
-          const [x, y, z] = j.handL;
-          mm.capsule(x, y, z + 1, x - 0.2 * s, y - 3.2 * s, z + 1.4, 0.55 * s, 0.45 * s, C('skin', 0.66), MAT.skin);
-        }
-      },
-    });
-    return m;
-  };
-  const phone = { reachChest: [5.2, -6.4, 2.6], hint: [0.4, 1, 0.4] };
-  const walk = (k) => {
-    const t = [20, 4, -10, 4][k];
-    const u = [-10, 4, 20, 4][k];
-    return { phone: true, armR: phone, armL: { spread: 10, swing: [-16, 0, 18, 0][k], bend: 25 }, bob: k % 2 ? -1 : 0, legL: { thigh: t, knee: t > 10 ? 26 : 8 }, legR: { thigh: u, knee: u > 10 ? 26 : 8 } };
-  };
-  return frames(
-    [
-      { phone: true, armR: phone, armL: { spread: 9, bend: 14 } },
-      { phone: true, armR: phone, armL: { spread: 35, swing: 30, bend: 80 }, headTilt: -0.6 }, // talking with his free hand
-      walk(0),
-      walk(1),
-      walk(2),
-      walk(3),
-      { phone: true, finger: true, armR: phone, armL: { reachChest: [-5.4, -7.2, 7] } }, // one sec
     ],
     draw,
   );
@@ -412,7 +331,7 @@ function bubbles() {
 export default [
   { name: 'coworker-dale', out: OUT('dale'), draw: dale, dither: 'fs' },
   { name: 'coworker-vera', out: OUT('vera'), draw: vera, dither: 'fs' },
-  { name: 'coworker-gus', out: OUT('gus'), draw: gus, dither: 'fs' },
+  { name: 'coworker-gus', out: OUT('gus'), draw: gusSheet }, // hand-drawn pixel art (people/gus.js)
   { name: 'coworker-terry', out: OUT('terry'), draw: terry, dither: 'fs' },
   { name: 'coworker-benny', out: OUT('benny'), draw: benny, dither: 'fs' },
   { name: 'speech-bubbles', out: 'assets/sprites/fx/bubbles.png', draw: bubbles },

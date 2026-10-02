@@ -52,8 +52,8 @@ export default [
     id: 'gus',
     name: 'GUS',
     glyph: '7',
-    sheet: S('gus'),
-    scale: 0.5,
+    // Hand-drawn pixel art at 1:1 (tools/art/sprites/people/gus.js).
+    sheet: { src: 'assets/sprites/coworkers/gus.png', frameWidth: 64, frameHeight: 64 },
     height: 0.8,
     wander: 2,
     speed: 0.9,
