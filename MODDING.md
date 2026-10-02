@@ -5,9 +5,9 @@ data. The engine in `src/engine/` never mentions Alex. It only reads that
 content pack. Each new monster, weapon, item, level, sound or song is a small
 definition in a file, plus one line in an index.
 
-This guide covers each kind of content in turn: monsters, weapons, items,
-scenery, levels, textures, sounds, music, cheats and custom behaviour. All
-paths are relative to the repository root.
+This guide covers each kind of content in turn: monsters, coworkers, weapons,
+items, scenery, levels, textures, sounds, music, cheats and custom behaviour.
+All paths are relative to the repository root.
 
 ## The workflow
 
@@ -111,6 +111,41 @@ Damage is either a `[min, max]` range or a number.
 `onAttack(world, self, attack)`, `onPain(world, self, source, amount)`,
 `onDeath(world, self, source)` and `onEvent(world, self, eventName)`. The Alarm
 King in `monsters/alarm-king.js` uses `onThink` to ring for reinforcements.
+
+## Coworkers (friendly characters)
+
+`src/content/coworkers.js` defines Alex's coworkers with `defineNpc()`.
+Friendlies are solid, so you bump into them, but they can't be hurt.
+Bullets, projectiles and explosions pass through them, and monsters never
+target them. Each one idles and wanders up to `wander` tiles from where it was
+placed. It stays out of doorways, hazards and one-tile passages, so it never
+blocks the way. When Alex bumps into one or presses use on it, it turns to
+him, plays `react`, says one of its `lines` (shown as `NAME: line`), plays
+`sounds.react` and pops up a `bubble` effect.
+
+```js
+defineNpc({
+  id: 'vera',
+  name: 'VERA',
+  glyph: '2',
+  sheet: { src: 'assets/sprites/coworkers/vera.png', frameWidth: 128, frameHeight: 128 },
+  scale: 0.5,               // 128px frames drawn at half size: sharper faces
+  wander: 3,                // tiles from the spot; 0 = stays put
+  speed: 0.8,
+  idleTime: [3, 6],         // seconds between strolls
+  anims: { idle: { frames: [0, 1], durations: [2.8, 1.6], loop: true }, walk: [2, 3, 4, 5], react: [6] },
+  lines: ['Cool.', 'Wow. Riveting.'],
+  bubble: 'bubble-dots',    // an effect from content/effects.js
+  sounds: { react: 'npc-hmph' },
+});
+```
+
+Animation frame events like `events: { 2: 'sound:npc-sigh' }` play a sound
+(Dale sighs on his idle loop). `hooks.onReact(world, self)` and
+`hooks.onThink(world, self, dt)` add custom behaviour. The sprites come from
+`tools/art/sprites/coworkers.js`. It maps each face photo in
+`assets/custom/coworkers/` onto a rig-built body by matching two points
+(usually the eyes).
 
 ## Weapons
 

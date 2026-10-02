@@ -1,5 +1,6 @@
 import { lineOfSight } from '../world/physics.js';
 import { F_SOLID, F_DOOR, F_DAMAGE } from '../world/tilemap.js';
+import { Rng } from '../core/rng.js';
 
 /**
  * Friendly characters (coworkers). They are solid but not shootable, so every
@@ -52,8 +53,11 @@ export function wanderArea(world, t) {
 
 export function initNpc(world, t) {
   t.area = wanderArea(world, t);
+  // Their own dice, seeded by where they stand: friendlies never change the
+  // random numbers the rest of the game sees (monsters, damage, demos).
+  t.rng = new Rng(Math.floor(t.x * 977 + t.y * 131) + 1);
   t.state = 'idle';
-  t.timer = world.rng.range(0.3, 2);
+  t.timer = t.rng.range(0.3, 2);
   t.reactCooldown = 0;
   t.stuck = 0;
   t.lastLine = -1;
@@ -63,7 +67,7 @@ function idle(world, t) {
   const [a, b] = t.def.idleTime ?? [2, 5];
   t.state = 'idle';
   t.setAnim('idle', false);
-  t.timer = world.rng.range(a, b);
+  t.timer = t.rng.range(a, b);
 }
 
 function startWalk(world, t) {
@@ -75,8 +79,8 @@ function startWalk(world, t) {
     return d > 0.8 && lineOfSight(map, t.x, t.y, x, y);
   });
   if (!tiles.length || !t.def.anims.walk) return idle(world, t);
-  const i = world.rng.pick(tiles);
-  t.goal = [(i % map.w) + 0.5 + world.rng.range(-0.2, 0.2), Math.floor(i / map.w) + 0.5 + world.rng.range(-0.2, 0.2)];
+  const i = t.rng.pick(tiles);
+  t.goal = [(i % map.w) + 0.5 + t.rng.range(-0.2, 0.2), Math.floor(i / map.w) + 0.5 + t.rng.range(-0.2, 0.2)];
   t.state = 'walk';
   t.setAnim('walk', false);
   t.timer = 8;
@@ -107,7 +111,7 @@ export function npcReact(world, t) {
   t.reactCooldown = def.reactCooldown ?? 2.5;
   const lines = def.lines ?? [];
   if (lines.length) {
-    let k = world.rng.int(0, lines.length - 1);
+    let k = t.rng.int(0, lines.length - 1);
     if (k === t.lastLine && lines.length > 1) k = (k + 1) % lines.length;
     t.lastLine = k;
     world.message(`${def.name}: ${lines[k]}`);
@@ -160,7 +164,7 @@ export function npcThink(world, t, dt) {
     default:
       t.timer -= dt;
       if (t.timer > 0) break;
-      if ((t.def.wander ?? 0) > 0 && t.area.size > 1 && world.rng.chance(0.75)) startWalk(world, t);
+      if ((t.def.wander ?? 0) > 0 && t.area.size > 1 && t.rng.chance(0.75)) startWalk(world, t);
       else idle(world, t);
   }
 }

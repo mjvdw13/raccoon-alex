@@ -33,6 +33,11 @@ id: 'e1m4',
   thingLegend: {
     E: { type: 'golem', skill: [3, 4, 5] },
   },
+  // Coworkers (friendlies), listed by position rather than in the things grid.
+  list: [
+    { type: 'benny', x: 39.5, y: 18.5 },
+    { type: 'vera', x: 57.5, y: 39.5 },
+  ],
   tiles: [
     '                                                                ',
     ' GGGGGGGGG            TTTkTkTkTkTkTkTkTkTTT jjjjjjjjjjjjjGGGGGG ',

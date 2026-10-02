@@ -30,6 +30,11 @@ id: 'e1m2',
   thingLegend: {
     Q: { type: 'manager', skill: [3, 4, 5] },
   },
+  // Coworkers (friendlies), listed by position rather than in the things grid.
+  list: [
+    { type: 'gus', x: 28.5, y: 11.5 },
+    { type: 'benny', x: 35.5, y: 21.5 },
+  ],
   tiles: [
     '                                                                ',
     ' HHHHHHHHHTTkTTTkTTTkTTTkTTTkTTTkkkkkkkkkkkkkkkkkT              ',

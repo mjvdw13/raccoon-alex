@@ -1,13 +1,23 @@
-# Custom art: Alex's face
+# Custom art: real faces
 
-Drop a photo here to replace the drawn face on the status bar and the ID badge
-on the title screen. The game handles the rest: it crops and shrinks the photo,
-crunches it into the 80s palette, and paints on darker eye bags, a raccoon
-mask, bruises and blood as health drops. Turning left or right and the god-mode
-and dead faces are generated from the same photo.
+This folder holds the photos behind the game's real faces.
+
+- `alex-closeup.png` is Alex's face. `tools/art/ui/face.js` maps it onto a
+  modelled head and shoulders and writes `alex.png`. `src/content/hero.js`
+  uses that for the status bar and the title ID badge, and the Employee of the
+  Month poster texture uses it too. The game crops and shrinks it, crunches it
+  into the 80s palette, and paints on darker eye bags, a raccoon mask, bruises
+  and blood as health drops. Turning left or right and the god-mode and dead
+  faces come from the same photo.
+- `coworkers/` holds face crops of Dale, Vera, Gus, Terry and Benny.
+  `tools/art/sprites/coworkers.js` maps each one onto its coworker's sprite by
+  lining up two points (usually the eyes). Run `npm run art` after changing
+  one.
 
 > **Heads up:** everything in this repository is public once it's on GitHub
-> Pages. Check that Alex is in on the joke before you push his photo.
+> Pages. Check that everyone is in on the joke before you push their photo.
+
+To use a different photo of Alex, follow these steps.
 
 ## Steps
 

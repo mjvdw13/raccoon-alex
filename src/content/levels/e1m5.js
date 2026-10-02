@@ -30,6 +30,11 @@ id: 'e1m5',
     Z: { type: 'golem', tag: 'compactor-ambush' },
     9: { type: 'manager', tag: 'compactor-ambush', skill: [3, 4, 5] },
   },
+  // Coworkers (friendlies), listed by position rather than in the things grid.
+  list: [
+    { type: 'gus', x: 43.5, y: 28.5 },
+    { type: 'terry', x: 54.5, y: 35.5 },
+  ],
   tiles: [
     '                                                                    ',
     ' GGGGGGGGGFFFfFFFFFfFFFFFfFFFFF                                     ',

@@ -28,6 +28,12 @@ id: 'e1m1',
     Z: { type: 'imp', tag: 'closet-imps' },
     9: { type: 'imp', tag: 'closet-imps', skill: [3, 4, 5] },
   },
+  // Coworkers (friendlies), listed by position rather than in the things grid.
+  list: [
+    { type: 'dale', x: 12.5, y: 26.5 },
+    { type: 'vera', x: 11.5, y: 9.5 },
+    { type: 'terry', x: 53.5, y: 29.5 },
+  ],
   tiles: [
     '                                                               ',
     ' #############B#####B######## ##### ##### wwNwNNwNNwNNwNNww    ',
