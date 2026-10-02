@@ -1,0 +1,492 @@
+import { buildLevel } from './level.js';
+import { F_SECRET, F_DAMAGE, F_EXIT, F_USE } from './tilemap.js';
+import { castRay, blockedByMap } from './physics.js';
+import { updateDoors, openDoor, closeDoor } from './doors.js';
+import { LightEffects } from './lights.js';
+import { FlowField } from './nav.js';
+import { noiseAlert } from './noise.js';
+import { Triggers } from './triggers.js';
+import { runActions } from './actions.js';
+import { Thing } from '../things/thing.js';
+import { PlayerState, playerThink, playerCamera } from '../things/player.js';
+import { monsterThink, wakeMonster, monsterPain, applyMomentum } from '../things/monster.js';
+import { projectileThink, launchProjectile, effectThink } from '../things/projectile.js';
+import { tryPickup } from '../things/pickups.js';
+import { damage, radiusDamage, hitscan, meleeTarget } from '../combat/damage.js';
+import { weaponSprites, bestWeapon } from '../things/weapons.js';
+
+/** Difficulty settings (1 = easiest .. 5 = nightmare). Placement per skill is up to each level. */
+export const SKILLS = {
+  1: { damageTaken: 0.5, ammoMultiplier: 2, monsterSpeed: 1, cooldownMultiplier: 1.35, fast: false },
+  2: { damageTaken: 1, ammoMultiplier: 1, monsterSpeed: 1, cooldownMultiplier: 1.15, fast: false },
+  3: { damageTaken: 1, ammoMultiplier: 1, monsterSpeed: 1, cooldownMultiplier: 1, fast: false },
+  4: { damageTaken: 1, ammoMultiplier: 1, monsterSpeed: 1.05, cooldownMultiplier: 0.9, fast: false },
+  5: { damageTaken: 1, ammoMultiplier: 2, monsterSpeed: 1.45, cooldownMultiplier: 0.55, fast: true },
+};
+
+const USE_RANGE = 1.3;
+const FLOOR_DAMAGE_INTERVAL = 0.9;
+
+/**
+ * One running level: the map, every thing in it, and the rules that tie
+ * them together. Rendering, input and audio live outside; the world only
+ * calls `services` (audio, hud messages, music) when it needs them.
+ */
+export class World {
+  /**
+   * @param {{registry:any, assets?:any, audio?:any, rng:any, settings?:any, hooks?:any}} services
+   * @param {*} level a defineLevel() result
+   * @param {{skill?:number, snapshot?:any}} [opts]
+   */
+  constructor(services, level, { skill = 3, snapshot = null } = {}) {
+    this.registry = services.registry;
+    this.assets = services.assets ?? null;
+    this.audio = services.audio ?? null;
+    this.rng = services.rng;
+    this.settings = services.settings ?? {};
+    this.hooks = services.hooks ?? {};
+    this.game = services.game ?? null;
+    this.level = level;
+    this.skill = skill;
+    this.skillInfo = SKILLS[skill] ?? SKILLS[3];
+    this.time = 0;
+    this.things = [];
+    this.exitRequested = null;
+    this.restartRequested = false;
+    this.lastNoise = -1;
+    this.floorTimer = 0;
+
+    const slot = this.assets ? (id) => this.assets.textureSlot(id) : () => 0;
+    const built = buildLevel(this.registry, level, { skill, textureSlot: slot });
+    this.buildErrors = built.errors;
+    this.map = built.map;
+    this.fog = level.fog ?? 0.3;
+    this.skyTexture = level.sky && this.assets ? this.assets.textures[this.assets.textureSlot(level.sky)] : null;
+    this.lights = new LightEffects(this.map, this.rng);
+    this.nav = new FlowField(this.map);
+    this.triggers = new Triggers(this, level.triggers);
+
+    this.stats = { kills: 0, totalKills: 0, items: 0, totalItems: 0, secrets: 0, totalSecrets: 0, time: 0 };
+    this._initSecrets();
+
+    // Player.
+    const hero = this.registry.hero ?? {};
+    const start = built.playerStart ?? { x: 1.5, y: 1.5, angle: 0 };
+    this.playerDef = {
+      id: 'player',
+      kind: 'player',
+      radius: hero.radius ?? 0.25,
+      height: 0.85,
+      health: hero.health ?? 100,
+      solid: true,
+      shootable: true,
+      anims: {},
+      sounds: hero.sounds ?? {},
+      hooks: {},
+      bleeds: true,
+      blood: hero.blood ?? 'blood',
+      mass: 100,
+    };
+    this.player = new Thing(this.playerDef, start.x, start.y, start.angle);
+    this.player.player = new PlayerState(this.registry, snapshot);
+    this.player.health = this.player.player.health;
+    this.things.push(this.player);
+    this._lastTile = -1;
+
+    for (const s of built.spawns) {
+      if (this.settings.noMonsters && this.registry.things.get(s.type)?.kind === 'monster') continue;
+      const t = this.spawn(s.type, s.x, s.y, s.angle);
+      if (!t) continue;
+      t.ambush = s.ambush;
+      t.tag = s.tag;
+      if (t.kind === 'monster' && t.def.countKill) this.stats.totalKills++;
+      if (t.kind === 'item' && t.def.countItem) this.stats.totalItems++;
+    }
+    this.nav.update(Math.floor(start.x), Math.floor(start.y), true);
+    this.triggers.start();
+  }
+
+  _initSecrets() {
+    const map = this.map;
+    this.secretGroup = new Int16Array(map.w * map.h).fill(-1);
+    let groups = 0;
+    for (let i = 0; i < map.w * map.h; i++) {
+      if (!(map.flags[i] & F_SECRET) || this.secretGroup[i] >= 0) continue;
+      const g = groups++;
+      const stack = [i];
+      this.secretGroup[i] = g;
+      while (stack.length) {
+        const c = stack.pop();
+        const cx = c % map.w;
+        const cy = (c / map.w) | 0;
+        for (const [nx, ny] of [[cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]]) {
+          if (!map.inBounds(nx, ny)) continue;
+          const n = ny * map.w + nx;
+          if (map.flags[n] & F_SECRET && this.secretGroup[n] < 0) {
+            this.secretGroup[n] = g;
+            stack.push(n);
+          }
+        }
+      }
+    }
+    this.secretFound = new Uint8Array(groups);
+    this.stats.totalSecrets = groups;
+  }
+
+  // ------------------------------------------------------------ things
+
+  /** Create a thing of a registered type. Returns null for unknown types. */
+  spawn(type, x, y, angle = 0) {
+    const def = this.registry.things.get(type);
+    if (!def) {
+      console.warn(`Unknown thing type "${type}"`);
+      return null;
+    }
+    const t = new Thing(def, x, y, angle);
+    t.sheet = this.assets?.sheetFor(def) ?? null;
+    if (def.kind === 'projectile') {
+      if (!t.setAnim('fly')) t.setAnim('idle');
+    } else if (!t.setAnim('idle')) {
+      t.setAnim('walk');
+    }
+    if (def.kind === 'monster') t.timer = this.rng.range(0, 0.3);
+    if (def.kind === 'decoration' && def.hanging) t.z = 1 - (t.sheet ? (t.sheet.fh / 64) * (def.scale ?? 1) : t.height);
+    this.things.push(t);
+    def.hooks?.onSpawn?.(this, t);
+    return t;
+  }
+
+  remove(t) {
+    t.removed = true;
+  }
+
+  spawnEffect(id, x, y, z = 0) {
+    if (!id || !this.registry.things.has(id)) return null;
+    const e = this.spawn(id, x, y);
+    if (e) e.z = z - (e.sheet ? (e.sheet.fh / 64) * (e.def.scale ?? 1) * 0.5 : 0);
+    return e;
+  }
+
+  spawnProjectile(id, owner, angle, spec) {
+    return launchProjectile(this, id, owner, angle, spec);
+  }
+
+  // ------------------------------------------------------------ movement
+
+  /** Can thing `t` stand at (x, y)? Checks walls, closed doors and solid things. */
+  checkPosition(t, x, y) {
+    if (blockedByMap(this.map, x, y, t.radius)) return false;
+    if (!t.solid) return true;
+    for (const o of this.things) {
+      if (o === t || !o.solid || o.removed) continue;
+      if (t.kind === 'projectile' || o.kind === 'projectile') continue;
+      const r = o.radius + t.radius;
+      const dx = o.x - x;
+      const dy = o.y - y;
+      if (dx * dx + dy * dy < r * r) {
+        // Allow moving apart if already overlapping.
+        const before = (o.x - t.x) ** 2 + (o.y - t.y) ** 2;
+        if (dx * dx + dy * dy < before) return false;
+      }
+    }
+    return true;
+  }
+
+  /** Move with wall sliding. Returns true if the thing moved at all. */
+  tryMove(t, dx, dy) {
+    const steps = Math.max(1, Math.ceil(Math.max(Math.abs(dx), Math.abs(dy)) / 0.2));
+    let moved = false;
+    for (let i = 0; i < steps; i++) {
+      const sx = dx / steps;
+      const sy = dy / steps;
+      if (this.checkPosition(t, t.x + sx, t.y + sy)) {
+        t.x += sx;
+        t.y += sy;
+        moved = true;
+        continue;
+      }
+      let slid = false;
+      if (sx && this.checkPosition(t, t.x + sx, t.y)) {
+        t.x += sx;
+        slid = true;
+      } else if (t.player) t.vx = 0;
+      if (sy && this.checkPosition(t, t.x, t.y + sy)) {
+        t.y += sy;
+        slid = true;
+      } else if (t.player) t.vy = 0;
+      moved = moved || slid;
+      if (!slid) break;
+    }
+    return moved;
+  }
+
+  /** Is any solid thing standing in tile (tx, ty)? */
+  tileOccupied(tx, ty) {
+    for (const t of this.things) {
+      if (!t.solid || t.removed) continue;
+      if (t.x + t.radius > tx && t.x - t.radius < tx + 1 && t.y + t.radius > ty && t.y - t.radius < ty + 1) return true;
+    }
+    return false;
+  }
+
+  // ------------------------------------------------------------ combat
+
+  damage(target, amount, inflictor, source, opts) {
+    damage(this, target, amount, inflictor, source, opts);
+    if (target?.player) target.health = target.player.health;
+  }
+
+  radiusDamage(x, y, radius, amount, inflictor, source) {
+    radiusDamage(this, x, y, radius, amount, inflictor, source);
+  }
+
+  hitscan(shooter, angle, range, amount, spec) {
+    return hitscan(this, shooter, angle, range, amount, spec);
+  }
+
+  meleeTarget(attacker, angle, range, arc) {
+    return meleeTarget(this, attacker, angle, range, arc);
+  }
+
+  wakeMonster(m, target) {
+    wakeMonster(this, m, target);
+  }
+
+  monsterPain(m) {
+    monsterPain(this, m);
+  }
+
+  noiseAlert(source) {
+    if (this.time - this.lastNoise < 0.15) return;
+    this.lastNoise = this.time;
+    noiseAlert(this, source);
+  }
+
+  playerDied(source) {
+    const pt = this.player;
+    const p = pt.player;
+    if (p.dead) return;
+    p.dead = true;
+    p.deathTime = this.time;
+    p.killer = source ?? null;
+    pt.dead = true;
+    pt.shootable = false;
+    this.playSound('player-death');
+    this.hooks.onPlayerDeath?.(this);
+  }
+
+  /** After picking up ammo with an empty gun, switch to something that can use it. */
+  autoSwitchForAmmo(ammoId) {
+    const p = this.player?.player;
+    if (!p) return;
+    const cur = this.registry.weapons.get(p.weapon);
+    const curEmpty = cur?.ammo && (p.ammo[cur.ammo] ?? 0) < cur.ammoPerShot;
+    if (cur && cur.fire?.kind !== 'melee' && !curEmpty) return;
+    let best = null;
+    for (const id of p.weapons) {
+      const w = this.registry.weapons.get(id);
+      if (w?.ammo === ammoId && (!best || (w.priority ?? 0) > (best.priority ?? 0))) best = w;
+    }
+    if (best && best.id !== p.weapon) p.pendingWeapon = best.id;
+  }
+
+  // ------------------------------------------------------------ interaction
+
+  openDoor(d) {
+    return openDoor(this, d);
+  }
+
+  /** The player presses "use": doors, switches and tagged walls in front of them. */
+  use(pt) {
+    const dx = Math.cos(pt.angle);
+    const dy = Math.sin(pt.angle);
+    const hit = castRay(this.map, pt.x, pt.y, dx, dy, USE_RANGE);
+    if (hit.door) {
+      this._useDoor(hit.door, pt);
+      return;
+    }
+    if (hit.passedDoor && hit.passedDoor.state === 'open' && !hit.passedDoor.stayOpen) {
+      closeDoor(this, hit.passedDoor);
+      return;
+    }
+    if (hit.dist < USE_RANGE && this.map.inBounds(hit.tx, hit.ty)) {
+      const i = this.map.index(hit.tx, hit.ty);
+      if (this.map.flags[i] & F_USE) {
+        this._useSwitch(i, hit.tx, hit.ty);
+        return;
+      }
+      if (this.triggers.useTile(i)) return;
+      this.playSound('oof');
+    }
+  }
+
+  _useDoor(d, pt) {
+    const p = pt.player;
+    if (d.lock === 'remote') {
+      this.playSound('oof');
+      return;
+    }
+    if (d.lock && !p.keys.has(d.lock)) {
+      const key = this.registry.config.keys?.find((k) => k.id === d.lock);
+      this.message(this.registry.text('needKey', { key: key?.name ?? d.lock }));
+      this.playSound('oof');
+      return;
+    }
+    if (d.state === 'open' || d.state === 'opening') {
+      if (!d.stayOpen) closeDoor(this, d);
+    } else {
+      openDoor(this, d);
+    }
+  }
+
+  _useSwitch(i, tx, ty) {
+    const u = this.map.uses.get(i);
+    if (!u || (u.used && !u.repeat)) {
+      this.playSound('oof');
+      return;
+    }
+    u.used = true;
+    if (u.switchTo >= 0) {
+      const old = this.map.wallTex[i];
+      this.map.wallTex[i] = u.switchTo;
+      if (u.repeat) u.switchTo = old;
+    }
+    this.playSoundAt(u.sound ?? 'switch', tx + 0.5, ty + 0.5);
+    runActions(this, u.actions, { tile: i });
+    this.triggers.useTile(i);
+  }
+
+  requestExit(kind = 'normal') {
+    if (!this.exitRequested) this.exitRequested = kind;
+  }
+
+  requestRestart() {
+    this.restartRequested = true;
+  }
+
+  message(text) {
+    this.hooks.message?.(text);
+  }
+
+  // ------------------------------------------------------------ audio
+
+  playSound(id, opts) {
+    if (id) this.audio?.play(id, opts);
+  }
+
+  playSoundAt(id, x, y) {
+    if (!id || !this.audio) return;
+    const p = this.player;
+    this.audio.playAt(id, x, y, p.x, p.y, p.angle);
+  }
+
+  playSoundFrom(id, thing) {
+    if (!id || !thing) return;
+    if (thing === this.player) this.playSound(id);
+    else this.playSoundAt(id, thing.x, thing.y);
+  }
+
+  // ------------------------------------------------------------ simulation
+
+  tick(dt, input) {
+    this.time += dt;
+    this.stats.time += dt;
+    this.lights.update(dt);
+    updateDoors(this, dt);
+
+    const pt = this.player;
+    playerThink(this, pt, input, dt, this.settings);
+    pt.health = pt.player.health;
+    if (!pt.player.dead) {
+      this._playerTile();
+      this._pickups();
+    }
+
+    const list = this.things;
+    for (let i = 0; i < list.length; i++) {
+      const t = list[i];
+      if (t.removed || t === pt) continue;
+      switch (t.kind) {
+        case 'monster':
+          monsterThink(this, t, dt);
+          break;
+        case 'projectile':
+          projectileThink(this, t, dt);
+          break;
+        case 'effect':
+          effectThink(this, t, dt);
+          break;
+        default:
+          applyMomentum(this, t, dt);
+          t.stepAnim(dt);
+          t.def.hooks?.onThink?.(this, t, dt);
+      }
+    }
+    if (list.some((t) => t.removed)) this.things = list.filter((t) => !t.removed);
+    this.nav.update(Math.floor(pt.x), Math.floor(pt.y));
+  }
+
+  _playerTile() {
+    const pt = this.player;
+    const tx = Math.floor(pt.x);
+    const ty = Math.floor(pt.y);
+    if (!this.map.inBounds(tx, ty)) return;
+    const i = ty * this.map.w + tx;
+    const f = this.map.flags[i];
+    if (i !== this._lastTile) {
+      this._lastTile = i;
+      if (f & F_SECRET) {
+        const g = this.secretGroup[i];
+        if (g >= 0 && !this.secretFound[g]) {
+          this.secretFound[g] = 1;
+          this.stats.secrets++;
+          this.message(this.registry.text('secretFound'));
+          this.playSound('secret');
+        }
+      }
+      this.triggers.enterTile(i);
+      if (f & F_EXIT) this.requestExit('normal');
+    }
+    if (f & F_DAMAGE) {
+      this.floorTimer -= 1 / 60;
+      if (this.floorTimer <= 0) {
+        this.floorTimer = FLOOR_DAMAGE_INTERVAL;
+        this.damage(pt, this.map.damage[i], null, null, { environment: true, noThrust: true, ignoreArmor: false });
+      }
+    } else {
+      this.floorTimer = 0.3;
+    }
+  }
+
+  _pickups() {
+    const pt = this.player;
+    for (const t of this.things) {
+      if (t.kind !== 'item' || t.removed) continue;
+      const r = t.radius + pt.radius;
+      if ((t.x - pt.x) ** 2 + (t.y - pt.y) ** 2 > r * r) continue;
+      if (!tryPickup(this, pt, t)) continue;
+      t.removed = true;
+      const p = pt.player;
+      p.bonusCount = Math.min(p.bonusCount + 18, 60);
+      if (t.def.message) this.message(t.def.message);
+      this.playSound(t.def.sound ?? 'item');
+      if (t.def.countItem && !t.dropped) this.stats.items++;
+      this.triggers.pickup(t);
+    }
+    pt.health = pt.player.health;
+  }
+
+  // ------------------------------------------------------------ rendering helpers
+
+  camera() {
+    return playerCamera(this, this.player);
+  }
+
+  psprites() {
+    return weaponSprites(this, this.player);
+  }
+
+  bestWeapon() {
+    return bestWeapon(this.registry, this.player.player);
+  }
+}
