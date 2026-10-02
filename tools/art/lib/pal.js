@@ -62,10 +62,61 @@ export const nearest = (c) => [...RGB[nearestIndex(c[0], c[1], c[2])]];
 const BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 
 /**
- * Snap every opaque pixel of a canvas to the palette. `dither` (0..48) adds
- * ordered dithering for a gritty 80s look on smooth gradients.
+ * Floyd–Steinberg error diffusion inside the opaque area only. Gives shaded
+ * sprites the noisy, digitized look of classic 90s shooter art.
  */
-export function quantize(canvas, { dither = 0 } = {}) {
+function quantizeFS(canvas, strength) {
+  const { w, h, data: d } = canvas;
+  const err = new Float32Array(w * h * 3);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      const o = i * 4;
+      if (d[o + 3] < 128) {
+        d[o] = 0;
+        d[o + 1] = 0;
+        d[o + 2] = 0;
+        d[o + 3] = 0;
+        continue;
+      }
+      const exactIdx = exact.get((d[o] << 16) | (d[o + 1] << 8) | d[o + 2]);
+      const keep = exactIdx !== undefined && exactIdx >= FB; // glow colours stay exact
+      const r = d[o] + (keep ? 0 : err[i * 3]);
+      const g = d[o + 1] + (keep ? 0 : err[i * 3 + 1]);
+      const b = d[o + 2] + (keep ? 0 : err[i * 3 + 2]);
+      const c = keep ? RGB[exactIdx] : RGB[nearestIndex(r, g, b)];
+      d[o] = c[0];
+      d[o + 1] = c[1];
+      d[o + 2] = c[2];
+      d[o + 3] = 255;
+      if (keep) continue;
+      const er = (r - c[0]) * strength;
+      const eg = (g - c[1]) * strength;
+      const eb = (b - c[2]) * strength;
+      const spread = (xx, yy, f) => {
+        if (xx < 0 || yy >= h || xx >= w) return;
+        const j = yy * w + xx;
+        if (d[j * 4 + 3] < 128) return;
+        err[j * 3] += er * f;
+        err[j * 3 + 1] += eg * f;
+        err[j * 3 + 2] += eb * f;
+      };
+      spread(x + 1, y, 7 / 16);
+      spread(x - 1, y + 1, 3 / 16);
+      spread(x, y + 1, 5 / 16);
+      spread(x + 1, y + 1, 1 / 16);
+    }
+  }
+  return canvas;
+}
+
+/**
+ * Snap every opaque pixel of a canvas to the palette. `dither` (0..48) adds
+ * ordered dithering for a gritty 80s look on smooth gradients; 'fs' uses
+ * error diffusion (best for shaded sprites).
+ */
+export function quantize(canvas, { dither = 0, strength = 0.8 } = {}) {
+  if (dither === 'fs') return quantizeFS(canvas, strength);
   const d = canvas.data;
   for (let y = 0; y < canvas.h; y++) {
     for (let x = 0; x < canvas.w; x++) {
