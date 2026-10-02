@@ -1,5 +1,5 @@
 import { buildLevel } from './world/level.js';
-import { F_EXIT } from './world/tilemap.js';
+import { F_EXIT, F_SOLID, F_VOID } from './world/tilemap.js';
 import { BUILTIN_ACTION_NAMES } from './world/actions.js';
 import { BUILTIN_ATTACKS } from './combat/attacks.js';
 import { BUILTIN_PICKUPS } from './things/pickups.js';
@@ -147,6 +147,23 @@ export function validateContent(reg) {
       if ([].concat(t.do ?? []).some((a) => ['exit', 'secretExit', 'finale'].includes(a.action))) hasExit = true;
     }
     if (!hasExit) warn(`${owner}: has no exit (exit tile, exit switch or exit trigger)`);
+    // Open tiles must be fenced in by walls: rays that reach the void draw garbage.
+    const leaks = [];
+    for (let y = 0; y < map.h && leaks.length < 5; y++) {
+      for (let x = 0; x < map.w; x++) {
+        if (map.flags[y * map.w + x] & F_SOLID) continue;
+        let open = false;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= map.w || ny >= map.h || map.flags[ny * map.w + nx] & F_VOID) open = true;
+          }
+        }
+        if (open) leaks.push(`(${x}, ${y})`);
+      }
+    }
+    if (leaks.length) err(`${owner}: floor touches the outside of the map (surround it with walls) at ${leaks.join(', ')}`);
     for (const d of map.doors) {
       if (d.lock && d.lock !== 'remote' && !keysPlaced.has(d.lock)) warn(`${owner}: door at (${d.x}, ${d.y}) needs key "${d.lock}" but none is placed`);
     }

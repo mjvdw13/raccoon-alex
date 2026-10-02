@@ -1,7 +1,7 @@
 // First-person weapon sprites ("psprites"), modelled and lit like the monsters.
 // Drawn at screen resolution and anchored bottom-centre. Frame layouts match
 // src/content/weapons/*.js.
-import { darken } from '../lib/canvas.js';
+import { darken, lighten, mix } from '../lib/canvas.js';
 import { C, G } from '../lib/pal.js';
 import { Model, MAT } from '../lib/model.js';
 import { sheet, flash } from '../lib/sprite.js';
@@ -79,23 +79,55 @@ function pawsSheet() {
 
 function stapleGunFrame({ y: oy = 12, fire = false, squeeze = 0 } = {}) {
   const m = new Model(96, 88, { seed: 103 });
-  const ox = 0;
-  const orange = C('orange', 0.55);
-  // Body: chunky orange housing seen from behind and above.
-  m.slab([[34 + ox, 30 + oy], [60 + ox, 30 + oy], [64 + ox, 72 + oy], [30 + ox, 72 + oy]], 12, orange, MAT.plastic, { bevel: 5, thickness: 5, tilt: [0, -0.35] });
-  m.slab([[37 + ox, 20 + oy], [57 + ox, 20 + oy], [59 + ox, 33 + oy], [35 + ox, 33 + oy]], 10, C('gray', 0.16), MAT.metal, { bevel: 3, thickness: 3, tilt: [0, -0.6] });
-  m.paint(47 + ox, 22 + oy, 3, 1.2, C('gray', 0.03));
-  m.slab([[38 + ox, 40 + oy], [56 + ox, 40 + oy], [56 + ox, 47 + oy], [38 + ox, 47 + oy]], 14, C('gray', 0.1), MAT.plastic, { bevel: 1 });
-  for (const [x, y] of [[37, 34], [57, 34], [36, 66], [58, 66]]) m.sphere(x + ox, y + oy, 15, 1.1, C('steel', 0.7), MAT.metal);
-  // Squeeze lever and grip.
-  m.slab([[38 + ox, 52 + oy + squeeze], [66 + ox, 46 + oy + squeeze], [68 + ox, 55 + oy + squeeze], [41 + ox, 61 + oy]], 16, C('gray', 0.13), MAT.plastic, { bevel: 2.5, thickness: 2 });
-  // Hand and forearm from the bottom right.
-  forearm(m, [104, 110, 28], [70 + ox, 74 + oy, 20], 9);
-  fist(m, 62 + ox, 58 + oy, 20, 7.5, -1);
+  // Modelled in profile (nose at x = 0, lever on top at negative y), then
+  // turned so the nose points up at the crosshair: a three-quarter view.
+  const th = (68 * Math.PI) / 180;
+  const [ox, oy0] = [41, 4 + oy];
+  const T = (x, y) => [ox + x * Math.cos(th) - y * Math.sin(th), oy0 + x * Math.sin(th) + y * Math.cos(th)];
+  const poly = (pts) => pts.map(([x, y]) => T(x, y));
+  const paint = mix(C('orange', 0.5), C('rust', 0.5), 0.3);
+  const body = { ...MAT.metal, spec: 0.35, shine: 18, grain: 0.06 };
+  // Body (the magazine) with a chrome nose plate and the staple slot.
+  m.slab(poly([[2, 0], [62, 0], [64, 3], [64, 15], [6, 15], [2, 11]]), 12, paint, body, { bevel: 3, thickness: 3 });
+  m.slab(poly([[0, -1], [9, -1], [9, 16], [3, 16], [0, 12]]), 14, C('steel', 0.68), MAT.metal, { bevel: 1.5, thickness: 1.5 });
+  m.paint(...T(3, 13.5), 2.2, 2.2, C('gray', 0.02));
+  // A worn maker's label and a dent.
+  m.paintPoly(poly([[22, 4], [44, 4], [44, 11], [22, 11]]), C('beige', 0.7));
+  m.paintPoly(poly([[22, 7], [44, 7], [44, 8.5], [22, 8.5]]), C('blood', 0.45));
+  m.dent(...T(50, 9), 3, 2.4, 1);
+  m.tint((x, y, c) => {
+    const h = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+    const r = h - Math.floor(h);
+    if (r > 0.985) return mix(c, C('steel', 0.75), 0.6); // chipped paint
+    if (r < 0.07) return darken(c, 0.25);
+    return undefined;
+  });
+  // The squeeze lever, hinged at the back, black rubber grip.
+  const lift = 3.2 - squeeze;
+  const lever = [[61, -1], [46, -2.5 - lift * 0.4], [30, -3 - lift * 0.8], [14, -3.5 - lift]];
+  for (let k = 0; k + 1 < lever.length; k++) {
+    const [a, b] = [T(...lever[k]), T(...lever[k + 1])];
+    m.capsule(a[0], a[1], 16, b[0], b[1], 16, 3.4 - k * 0.3, 3.1 - k * 0.3, k < 2 ? C('gray', 0.1) : C('steel', 0.55), k < 2 ? MAT.leather : MAT.metal);
+  }
+  m.sphere(...T(61, 0), 18, 2.6, C('steel', 0.6), MAT.metal);
+  // Alex's hand: the back of it along the lever, fingers wrapped under the body.
+  const sq = squeeze * 0.5;
+  const [w0, w1] = [T(58, -4 + sq), T(36, -5 + sq)];
+  forearm(m, [106, 112, 24], [w0[0] + 10, w0[1] + 12, 22], 8.5);
+  m.capsule(w0[0], w0[1], 22, w1[0], w1[1], 24, 8, 6.8, SKIN, MAT.skin);
+  for (let k = 0; k < 4; k++) {
+    const [kx, ky] = T(35 + k * 5.4, -7.5 + sq);
+    m.sphere(kx, ky, 27, 2.6, lighten(SKIN, 0.04), MAT.skin); // knuckles
+    const [fx, fy] = T(35 + k * 5.4, 14);
+    m.sphere(fx, fy, 22, 2.5, darken(SKIN, 0.08), MAT.skin); // fingertips curling round
+  }
+  const [t0, t1] = [T(54, 3), T(30, 4)];
+  m.capsule(t0[0], t0[1], 26, t1[0], t1[1], 25, 3, 2.3, SKIN, MAT.skin); // thumb along the near side
   const c = render(m);
-  // "HD" stencil.
-  for (const [x, y] of [[43, 42], [43, 43], [43, 44], [44, 43], [45, 42], [45, 43], [45, 44], [47, 42], [47, 43], [47, 44], [48, 42], [49, 43], [48, 44]]) c.set(x + ox, y + oy, C('orange', 0.85));
-  if (fire) flash(c, 47 + ox, 17 + oy, 14, G('yellow', 1), G('yellow', 0.45));
+  if (fire) {
+    const [nx, ny] = T(-2, 13);
+    flash(c, nx, ny, 7, G('yellow', 1), G('yellow', 0.45));
+  }
   return c;
 }
 

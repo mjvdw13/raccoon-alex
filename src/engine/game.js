@@ -134,7 +134,9 @@ export class Game {
   }
 
   async _buildFace() {
-    const face = this.registry.hero?.face ?? {};
+    // ?photo=assets/custom/alex.jpg previews a face photo without editing hero.js.
+    const face = { ...(this.registry.hero?.face ?? {}) };
+    if (this.params.get('photo')) face.photo = this.params.get('photo');
     if (face.photo) {
       try {
         const { sheet, portrait } = await buildPhotoFace(this.assets, this.palette, face);
