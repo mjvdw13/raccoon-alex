@@ -160,18 +160,20 @@ body {
   font-size: 16px;
 }
 
+/* USE and WPN stack above FIRE so wide phones keep them in the side bar,
+   clear of the status bar. */
 #touch .btn.use {
-  right: calc(122px + env(safe-area-inset-right));
-  bottom: 24px;
-  width: 62px;
-  height: 62px;
+  right: calc(31px + env(safe-area-inset-right));
+  bottom: 138px;
+  width: 66px;
+  height: 66px;
 }
 
 #touch .btn.weapon {
-  right: calc(30px + env(safe-area-inset-right));
-  bottom: 140px;
-  width: 58px;
-  height: 58px;
+  right: calc(36px + env(safe-area-inset-right));
+  bottom: 216px;
+  width: 56px;
+  height: 56px;
 }
 
 #touch .btn.map,
