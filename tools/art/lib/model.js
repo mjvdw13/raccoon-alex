@@ -7,6 +7,7 @@
 // grain, which gives the sculpted, digitized look of classic 90s shooter
 // sprites rather than a cartoon.
 import { PixelCanvas } from './canvas.js';
+import { resize, sample } from './photo.js';
 import { hash2, valueNoise } from './noise.js';
 
 const BASE = { spec: 0.08, shine: 10, grain: 0.05, emissive: false, wrap: 0.25 };
@@ -27,6 +28,8 @@ export const MAT = {
   glass: { spec: 0.9, shine: 40, grain: 0.01 },
   // Eyeballs: wet and mostly self-lit so sockets don't swallow them.
   eye: { spec: 0.7, shine: 36, grain: 0.01, flat: 0.75 },
+  // Photo-textured faces: the photo already has its own light and shade.
+  photo: { spec: 0.08, shine: 12, grain: 0, flat: 0.7 },
   paper: { spec: 0.02, shine: 4, grain: 0.06 },
   bone: { spec: 0.2, shine: 12, grain: 0.08 },
   glow: { emissive: true, grain: 0 },
@@ -239,6 +242,51 @@ export class Model {
           if (m >= 0) this.mat[i] = m;
         }
       }
+    }
+    return this;
+  }
+
+  /**
+   * Paint a photo onto already-modelled pixels inside an ellipse (a face on a
+   * head). `map(x, y)` gives photo coordinates for a sprite pixel (see
+   * lib/photo.js pointMap). The edge fades over `feather` pixels; `level`
+   * evens out the photo's exposure to a target mean brightness (0..255);
+   * `colorize` recolours each sample (for black-and-white photos), and
+   * `keep(rgb)` -> 0..1 can drop samples that aren't face (a green background).
+   */
+  imprint(photo, cx, cy, rx, ry, map, { feather = 1.5, level = 0, colorize, keep, mat = MAT.photo } = {}) {
+    const m = this._m(mat);
+    // Pre-shrink the photo so each sprite pixel averages its whole footprint.
+    const k = Math.max(1, map.scale ?? 1);
+    const src = k > 1.25 ? resize(photo, Math.max(2, Math.round(photo.w / k)), Math.max(2, Math.round(photo.h / k))) : photo;
+    const su = src.w / photo.w;
+    const sv = src.h / photo.h;
+    const pts = [];
+    let sum = 0;
+    for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) {
+      for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
+        if (!this.has(x, y)) continue;
+        const dx = (x + 0.5 - cx) / rx;
+        const dy = (y + 0.5 - cy) / ry;
+        const d = Math.hypot(dx, dy);
+        if (d > 1) continue;
+        const [u, v] = map(x + 0.5, y + 0.5);
+        let col = sample(src, u * su, v * sv);
+        const kept = keep ? keep(col) : 1;
+        if (kept <= 0) continue;
+        if (colorize) col = colorize(col);
+        const edge = (1 - d) * Math.min(rx, ry);
+        pts.push([x, y, col, Math.min(1, edge / feather) * kept]);
+        sum += col[0] * 0.3 + col[1] * 0.59 + col[2] * 0.11;
+      }
+    }
+    const gain = level && pts.length ? level / (sum / pts.length) : 1;
+    for (const [x, y, col, w] of pts) {
+      const i = y * this.w + x;
+      this.cr[i] += (Math.min(255, col[0] * gain) - this.cr[i]) * w;
+      this.cg[i] += (Math.min(255, col[1] * gain) - this.cg[i]) * w;
+      this.cb[i] += (Math.min(255, col[2] * gain) - this.cb[i]) * w;
+      if (w > 0.5) this.mat[i] = m;
     }
     return this;
   }

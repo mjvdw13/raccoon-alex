@@ -36,6 +36,7 @@ const ANIM_DEFAULTS = {
   explode: { fps: 10, loop: false },
   fire: { fps: 12, loop: false },
   ready: { fps: 4, loop: true },
+  react: { fps: 6, loop: true },
 };
 
 /**
@@ -239,6 +240,34 @@ export function defineMonster(def) {
 }
 
 /**
+ * A friendly character, such as a coworker. Friendlies can't be hurt or
+ * targeted: bullets, projectiles and explosions pass through them. They idle,
+ * wander up to `wander` tiles from where they were placed (staying out of
+ * doorways, narrow passages and hazards), and react when the player bumps into
+ * them or uses them: they turn to the player, play `react` and say one of
+ * their `lines`.
+ * @param {{id:string, name:string, glyph?:string, sheet:SheetSpec,
+ *   anims:{idle:AnimSpec, walk?:AnimSpec, react?:AnimSpec}, lines?:string[],
+ *   wander?:number, speed?:number, idleTime?:[number,number], reactTime?:number,
+ *   reactCooldown?:number, bubble?:string, sounds?:{react?:string},
+ *   hooks?:{onReact?:Function}}} def
+ */
+export function defineNpc(def) {
+  return baseThing(def, 'npc', {
+    solid: true,
+    shootable: false,
+    radius: 0.28,
+    height: 0.85,
+    speed: 1.1,
+    wander: 3,
+    idleTime: [2, 5],
+    reactTime: 1.8,
+    reactCooldown: 2.5,
+    lines: [],
+  });
+}
+
+/**
  * A pickup. `pickup` effects: health, maxHealth, armor, armorClass, maxArmor, ammo{},
  * weapon, key, powerup, duration, backpack, map. Add new ones with definePickup().
  * @param {{id:string, name?:string, glyph?:string, sheet:SheetSpec, anims?:Record<string,AnimSpec>,
@@ -285,10 +314,14 @@ export function defineProjectile(def) {
   return p;
 }
 
-/** A short-lived visual effect (bullet puffs, blood, explosions). */
+/**
+ * A short-lived visual effect (bullet puffs, blood, explosions). It plays its
+ * `idle` animation once and disappears.
+ */
 export function defineEffect(def) {
   const e = baseThing(def, 'effect', { rise: 0, fullbright: false });
   if (!e.anims.idle) throw new Error(`Effect "${def.id}": needs anims.idle`);
+  e.anims.idle.loop = false;
   return e;
 }
 

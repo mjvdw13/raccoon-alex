@@ -1,7 +1,7 @@
-// Humanoid monsters: the Zombie Intern, the Reply-All Imp and the Middle Manager.
+// Monsters built on the two-legged rig: the Zombie Intern, the Reply-All Imp and the Middle Manager.
 // Built from shaded 3D primitives (see lib/model.js and lib/rig.js) for a
 // sculpted, digitized look rather than flat cartoon colours.
-import { mix, darken, lighten } from '../lib/canvas.js';
+import { mix, darken } from '../lib/canvas.js';
 import { C, G } from '../lib/pal.js';
 import { Model, MAT, skeleton, body, puddle } from '../lib/rig.js';
 import { sheet, flash } from '../lib/sprite.js';
@@ -26,52 +26,74 @@ function grime(m, seed, { amount = 0.25, blood = 0, region = () => true } = {}) 
 
 const RENDER = { light: [-0.5, -0.6, 0.62], ambient: 0.3, aoStrength: 0.5 };
 
+/** Offsets from a joint that follow the body when it topples over (skeleton `fall`). */
+function along(pose) {
+  const a = -(pose.fall ?? 0);
+  const c = Math.cos(a);
+  const s = Math.sin(a);
+  return (p, dx, dy, dz = 0) => [p[0] + dx * c - dy * s, p[1] + dx * s + dy * c, p[2] + dz];
+}
+
 // ------------------------------------------------------------------ intern
+// What's left of an unpaid intern: a rotting, shambling corpse with a staple gun.
 
-const ZOMBIE = mix(C('skin', 0.5), C('olive', 0.55), 0.5);
-const SHIRT = C('beige', 0.78);
-const KHAKI = mix(C('beige', 0.42), C('olive', 0.45), 0.3);
+const ROT = mix(C('olive', 0.4), C('toxic', 0.32), 0.4);
+const ROT_DARK = darken(ROT, 0.55);
+const BONE = C('beige', 0.74);
+const SHIRT = mix(C('beige', 0.8), C('olive', 0.6), 0.15);
+const KHAKI = mix(C('beige', 0.4), C('olive', 0.42), 0.35);
 
-function internFrame(pose, { aim = false, fire = false, gore = 0, stains = 0.4 } = {}) {
+function internFrame(pose, { aim = false, fire = false, gore = 0, stains = 0.5 } = {}) {
   const m = new Model(64, 64, { seed: 11 });
-  const J = skeleton(64, 64, pose, { height: 49 });
+  const J = skeleton(64, 64, { hunch: 1.8, ...pose }, { height: 49, build: 0.86 });
+  const at = along(pose);
+  const xy = (p, dx, dy) => at(p, dx, dy).slice(0, 2);
+  const lit = (pose.fall ?? 0) < 1; // the glow goes out once they hit the floor
   body(m, J, {
-    skin: ZOMBIE,
+    skin: ROT,
+    skinMat: MAT.flesh,
     shirt: SHIRT,
     pants: KHAKI,
     shoes: C('rust', 0.12),
-    hair: C('rust', 0.1),
     sleeve: 'short',
-    clothes(mm, j) {
-      const [nx, ny] = j.neck;
-      const [bx, by] = j.belly;
-      // Loosened red tie.
-      mm.stroke(nx, ny + 2.4, (nx + bx) / 2 + 0.6, by + 1.5, 1.7, C('blood', 0.5), MAT.cloth);
-      mm.paint(nx, ny + 2.6, 1.2, 0.9, C('blood', 0.4));
-      // Open collar.
-      mm.paint(nx - 1.7, ny + 1.9, 1.3, 0.9, lighten(SHIRT, 0.1));
-      mm.paint(nx + 1.7, ny + 1.9, 1.3, 0.9, lighten(SHIRT, 0.1));
-      // Lanyard and ID badge.
-      mm.stroke(nx - 2.2, ny + 1.5, nx - 3.6, ny + 7.5, 0.7, C('steel', 0.45), MAT.cloth);
-      const [cx, cy, cz] = j.chest;
-      mm.slab([[cx - 5.6, cy - 0.6], [cx - 2.4, cy - 0.6], [cx - 2.4, cy + 3.4], [cx - 5.6, cy + 3.4]], cz + 4.4, C('beige', 0.95), MAT.plastic, { bevel: 0.8, thickness: 0.6 });
-      mm.paint(cx - 4, cy + 0.4, 1, 0.8, C('skin', 0.5));
-      // Belt.
-      const [px, py] = j.pelvis;
-      mm.stroke(px - 6, py - 2.6, px + 6, py - 2.6, 1.3, C('rust', 0.12), MAT.leather);
-      grime(mm, 21, { amount: 0.35, blood: stains, region: (x, y) => y > ny && y < py + 10 });
+    head(mm, j) {
+      const h = j.head;
+      // A shrunken, half-bare skull with the jaw hanging loose.
+      mm.ellipsoid(...at(h, 0, -0.8, -0.2), 4, 4.3, 4.2, ROT, MAT.flesh);
+      mm.ellipsoid(...at(h, 0, 1.8, 0.9), 2.9, 2, 3.2, ROT, MAT.flesh);
+      mm.ellipsoid(...at(h, -1.3, -3.2, 1.2), 2.1, 1.4, 2.5, BONE, MAT.bone);
+      mm.ellipsoid(...at(h, 0.6, 4.5, 1.4), 2.4, 1.3, 2.6, BONE, MAT.bone);
+      mm.sphere(...at(h, 3.9, 0.4, -1), 1, ROT, MAT.flesh);
+      // The face has rotted down to the bone: empty sockets (one still glows),
+      // a hole for a nose and a lipless grin.
+      mm.paint(...xy(h, 0, 0.9), 3, 2.9, mix(ROT, BONE, 0.6), MAT.bone);
+      for (const side of [-1, 1]) {
+        mm.dent(...xy(h, side * 1.7, -0.2), 1.5, 1.3, 1.7);
+        mm.paint(...xy(h, side * 1.7, -0.2), 1.25, 1.05, C('gray', 0.03));
+      }
+      mm.dot(...xy(h, -1.9, -0.3), lit ? G('red', 1) : C('blood', 0.2), lit ? MAT.glow : MAT.flesh);
+      mm.paintPoly([xy(h, -0.7, 1.8), xy(h, 0.7, 1.8), xy(h, 0, 0.7)], C('gray', 0.05));
+      mm.paint(...xy(h, 0.3, 3.5), 2.3, 1.1, C('gray', 0.04));
+      for (const k of [-1.5, -0.5, 0.5, 1.5]) {
+        mm.dot(...xy(h, k, 2.8), BONE, MAT.bone);
+        mm.dot(...xy(h, k + 0.6, 4.2), BONE, MAT.bone);
+      }
+      for (const [x0, y0, x1, y1] of [[2.4, -3.6, 3.6, -1], [1.2, -4.4, 2.6, -2.6], [-3.6, -2, -3.9, 0.6]]) mm.stroke(...xy(h, x0, y0), ...xy(h, x1, y1), 0.6, C('rust', 0.1));
     },
-    face(mm, j) {
-      const [hx, hy] = j.head;
-      // Sunken, glowing eyes and a slack, bloody mouth.
-      mm.paint(hx - 1.7, hy - 0.3, 1.3, 0.9, darken(ZOMBIE, 0.55));
-      mm.paint(hx + 1.7, hy - 0.3, 1.3, 0.9, darken(ZOMBIE, 0.55));
-      const lit = (pose.fall ?? 0) < 1; // the glow goes out once they hit the floor
-      mm.dot(hx - 2, hy - 0.4, lit ? G('red', 1) : C('blood', 0.2), lit ? MAT.glow : MAT.flesh);
-      mm.dot(hx + 1.4, hy - 0.4, lit ? G('red', 1) : C('blood', 0.2), lit ? MAT.glow : MAT.flesh);
-      mm.dent(hx, hy + 2.8, 1.8, 0.8, 1.4);
-      mm.stroke(hx - 1.5, hy + 2.8, hx + 1.5, hy + 3, 0.9, C('blood', 0.15));
-      mm.stroke(hx + 1, hy + 3.2, hx + 1.2, hy + 5, 0.6, C('blood', 0.4));
+    clothes(mm, j) {
+      // The shirt is torn open: rotten skin and bare ribs show through.
+      mm.paintPoly([xy(j.chest, 0.2, -4.2), xy(j.chest, 4.6, -3.6), xy(j.chest, 5.2, 1.6), xy(j.chest, 3.6, 4.8), xy(j.chest, 0.6, 3.2)], ROT_DARK, MAT.flesh);
+      for (let r = 0; r < 4; r++) mm.stroke(...xy(j.chest, 0.9, -2.8 + r * 1.8), ...xy(j.chest, 4.5, -2.2 + r * 1.8), 0.65, BONE, MAT.bone);
+      // A ragged hem over a rotten belly.
+      mm.paintPoly([xy(j.belly, -4.6, 2.4), xy(j.belly, -1.5, 0.6), xy(j.belly, 0.8, 2.8), xy(j.belly, 3.4, 0.9), xy(j.belly, 5, 3.4), xy(j.belly, 4.4, 6), xy(j.belly, -4.4, 6)], ROT, MAT.flesh);
+      // What's left of the tie, and the intern badge on its lanyard.
+      mm.stroke(...xy(j.neck, 0, 2.4), ...xy(j.chest, -0.8, 3.6), 1.6, C('blood', 0.45), MAT.cloth);
+      mm.stroke(...xy(j.neck, -2.2, 1.5), ...xy(j.chest, -3.8, 0.4), 0.7, C('steel', 0.45), MAT.cloth);
+      const cz = j.chest[2];
+      mm.slab([xy(j.chest, -5.6, -0.6), xy(j.chest, -2.4, -0.6), xy(j.chest, -2.4, 3.4), xy(j.chest, -5.6, 3.4)], cz + 4.4, C('beige', 0.95), MAT.plastic, { bevel: 0.8, thickness: 0.6 });
+      mm.paint(...xy(j.chest, -4, 0.4), 1, 0.8, ROT);
+      mm.stroke(...xy(j.pelvis, -6, -2.6), ...xy(j.pelvis, 6, -2.6), 1.3, C('rust', 0.12), MAT.leather);
+      grime(mm, 21, { amount: 0.5, blood: stains, region: (x, y) => y > j.neck[1] - 2 });
     },
     held(mm, j) {
       if (aim) {
@@ -86,6 +108,10 @@ function internFrame(pose, { aim = false, fire = false, gore = 0, stains = 0.4 }
       }
     },
   });
+  // A bare bone for a left forearm, and a trouser leg torn away to the knee.
+  m.capsule(...at(J.elbowL, 0, 0, 1.3), ...at(J.handL, 0, 0, 1.3), 0.75, 0.55, BONE, MAT.bone);
+  m.capsule(...at(J.kneeR, 0, 2.2, 0.4), ...at(J.ankleR, 0, -0.5, 0.4), 2.2, 1.6, ROT, MAT.flesh);
+  m.capsule(...at(J.kneeR, 0.3, 2.4, 1.8), ...at(J.ankleR, 0.2, -0.8, 1.6), 0.6, 0.5, BONE, MAT.bone);
   if (gore) puddle(m, 32, 61, 13 + gore * 4, 2.6, C('blood', 0.3));
   const c = m.render(RENDER);
   if (fire) {
@@ -122,8 +148,18 @@ function falls(frameFn, recoil, n = 5) {
   return out;
 }
 
+/** A shambling walk: short dragging steps, swaying, the head lolling to one side. */
+const SHAMBLE = [
+  { bob: 0, lean: -0.8, headTilt: 1.1, legL: { thigh: 16, knee: 22 }, legR: { thigh: -8, knee: 12 } },
+  { bob: -0.6, headTilt: 1.5, legL: { thigh: 4, knee: 10 }, legR: { thigh: 2, knee: 14 } },
+  { bob: 0, lean: 0.8, headTilt: 1.9, legL: { thigh: -8, knee: 12 }, legR: { thigh: 14, knee: 24 } },
+  { bob: -0.6, headTilt: 1.5, legL: { thigh: 2, knee: 14 }, legR: { thigh: 4, knee: 10 } },
+];
+
 function internSheet() {
-  const frames = STEP.map((p) => internFrame({ ...p, armR: { ...p.armR, bend: 50 } }));
+  const frames = SHAMBLE.map((p, k) =>
+    internFrame({ ...p, armL: { reach: [27 + [0, 0.5, 1, 0.5][k], 31 - [0, 0.6, 0, 0.6][k], 13] }, armR: { spread: 12, swing: [12, 0, -10, 0][k], bend: 55 } }),
+  );
   const aim = {
     legL: { thigh: 4, knee: 6, spread: 6 },
     legR: { thigh: -4, knee: 4, spread: 6 },
@@ -134,68 +170,91 @@ function internSheet() {
   frames.push(internFrame({ ...aim, lean: -0.5 }, { aim: true, fire: true }));
   frames.push(internFrame({ lean: -3, headTilt: -1.5, headLift: 1, armL: { spread: 40, swing: 10, bend: 30 }, armR: { spread: 45, swing: -10, bend: 40 }, legL: { thigh: 8, knee: 14 }, legR: { thigh: -6, knee: 4 } }));
   const recoil = { lean: -3, headTilt: -2, armL: { spread: 60, swing: 10, bend: 40 }, armR: { spread: 70, swing: 20, bend: 50 }, legL: { thigh: 12, knee: 24 }, legR: { thigh: -4, knee: 10 } };
-  frames.push(...falls((p, gore) => internFrame(p, { gore, stains: 0.6 }), recoil));
+  frames.push(...falls((p, gore) => internFrame(p, { gore, stains: 0.7 }), recoil));
   return sheet(frames);
 }
 
 // ------------------------------------------------------------------ imp
+// A hunched, spiny demon with a whip of a tail that hurls flaming reply-all emails.
 
-const IMP = mix(C('rust', 0.34), C('blood', 0.38), 0.55);
-const SUIT = C('navy', 0.42);
+const HIDE = mix(C('rust', 0.3), C('blood', 0.36), 0.5);
+const HIDE_DARK = darken(HIDE, 0.4);
+const BELLY = mix(C('beige', 0.46), C('rust', 0.42), 0.55);
+const HORN = C('beige', 0.6);
 
 function impFrame(pose, { holding = false, gore = 0, mouth = false } = {}) {
   const m = new Model(64, 64, { seed: 23 });
-  const J = skeleton(64, 64, { hunch: 2.5, ...pose }, { height: 47, build: 1.12 });
+  const legs = { legL: { spread: 7, ...pose.legL }, legR: { spread: 7, ...pose.legR } };
+  const J = skeleton(64, 64, { hunch: 3, ...pose, ...legs }, { height: 46, build: 1.18, shoulders: 7.4, hips: 3.8 });
+  const at = along(pose);
+  const xy = (p, dx, dy) => at(p, dx, dy).slice(0, 2);
+  const lit = (pose.fall ?? 0) < 1;
+  // The tail curls out from behind the left hip and ends in a barb.
+  const tail = [[-1.5, 2.5, -3], [-7, 6.5, -3.2], [-12.5, 5.5, -2.6], [-15.5, 1, -2], [-15, -3.5, -1.6]].map(([dx, dy, dz]) => at(J.pelvis, dx, dy, dz));
+  for (let k = 0; k < tail.length - 1; k++) m.capsule(...tail[k], ...tail[k + 1], 1.8 - k * 0.3, 1.5 - k * 0.3, HIDE, MAT.flesh);
+  const tip = tail[tail.length - 1];
+  m.capsule(...tip, ...at(tip, 0.8, -2.8), 1.1, 0.2, HORN, MAT.bone);
   body(m, J, {
-    skin: IMP,
+    skin: HIDE,
     skinMat: MAT.flesh,
-    shirt: SUIT,
-    pants: darken(SUIT, 0.2),
-    shoes: darken(IMP, 0.3),
-    shoeMat: MAT.flesh,
-    sleeve: 'short',
-    hands: darken(IMP, 0.15),
-    headShape: { rx: 4.4, ry: 4.6, rz: 4.6 },
-    clothes(mm, j) {
-      const [nx, ny] = j.neck;
-      const [cx, cy] = j.chest;
-      // Bare chest showing through the shredded jacket.
-      mm.paintPoly([[nx - 3.5, ny + 1.5], [nx + 3.5, ny + 1.5], [cx + 1, cy + 6], [cx - 1, cy + 6]], IMP, MAT.flesh);
-      mm.stroke(cx - 2.5, cy + 0.5, cx + 2.5, cy + 0.5, 0.6, darken(IMP, 0.4));
-      mm.stroke(cx - 1.8, cy + 2.8, cx + 1.8, cy + 2.8, 0.6, darken(IMP, 0.4));
-      // Bony shoulder spikes.
-      for (const n of ['L', 'R']) {
-        const [sx, sy, sz] = j[`shoulder${n}`];
-        const side = n === 'L' ? -1 : 1;
-        m.capsule(sx, sy - 1, sz + 1, sx + side * 3.5, sy - 6, sz + 1.5, 1.6, 0.3, C('beige', 0.62), MAT.bone);
-        m.capsule(sx - side * 1.5, sy - 1.5, sz, sx - side * 0.5, sy - 5, sz + 0.5, 1.1, 0.2, C('beige', 0.55), MAT.bone);
-      }
-      grime(mm, 31, { amount: 0.4, region: (x, y) => y > ny });
-      // Claws.
-      for (const n of ['L', 'R']) {
-        const [x, y, z] = j[`hand${n}`];
-        for (let k = -1; k <= 1; k++) m.capsule(x + k * 1.2, y + 1, z + 1, x + k * 1.6, y + 3.4, z + 1.6, 0.6, 0.15, C('beige', 0.7), MAT.bone);
-      }
-    },
-    face(mm, j) {
-      const [hx, hy, hz] = j.head;
-      // Curved horns.
+    shirt: HIDE,
+    shirtMat: MAT.flesh,
+    pants: HIDE,
+    pantsMat: MAT.flesh,
+    shins: HIDE_DARK,
+    shoes: darken(HIDE, 0.55),
+    shoeMat: MAT.bone,
+    sleeve: 'none',
+    hands: HIDE_DARK,
+    head(mm, j) {
+      const h = j.head;
+      // A low, wide skull with a heavy brow and a jutting, fanged jaw.
+      mm.ellipsoid(...at(h, 0, -0.4), 4.6, 3.9, 4.4, HIDE, MAT.flesh);
+      mm.ellipsoid(...at(h, 0, 2.4, 1.3), 3.6, 2.3, 3.4, HIDE, MAT.flesh);
+      mm.ellipsoid(...at(h, 0, -1.7, 2.8), 4.1, 1.1, 1.6, HIDE_DARK, MAT.flesh);
       for (const side of [-1, 1]) {
-        m.capsule(hx + side * 3, hy - 2.5, hz - 0.5, hx + side * 5.5, hy - 6.5, hz - 1, 1.5, 1, C('beige', 0.6), MAT.bone);
-        m.capsule(hx + side * 5.5, hy - 6.5, hz - 1, hx + side * 5, hy - 10, hz - 1.5, 1, 0.25, C('beige', 0.7), MAT.bone);
+        // Horns sweeping up and out, and pointed ears.
+        const a = at(h, side * 2.8, -2.6, -0.4);
+        const b = at(h, side * 5.6, -5.6, -1);
+        mm.capsule(...a, ...b, 1.6, 1.1, HORN, MAT.bone);
+        mm.capsule(...b, ...at(h, side * 6, -9.6, -1.4), 1.1, 0.25, HORN, MAT.bone);
+        mm.capsule(...at(h, side * 4, 0, -0.6), ...at(h, side * 6.8, -1.6, -1.2), 1.1, 0.25, HIDE, MAT.flesh);
       }
-      // Brow ridge, glowing eyes, fanged mouth.
-      m.ellipsoid(hx, hy - 1.6, hz + 2.6, 3.8, 1.1, 1.6, darken(IMP, 0.1), MAT.flesh);
-      const lit = (pose.fall ?? 0) < 1;
-      const eye = lit ? G('yellow', 0.75) : C('yellow', 0.2);
       const mat = lit ? MAT.glow : MAT.flesh;
-      mm.paint(hx - 1.8, hy - 0.2, 1.3, 0.8, eye, mat);
-      mm.paint(hx + 1.8, hy - 0.2, 1.3, 0.8, eye, mat);
-      mm.dot(hx - 1.8, hy - 0.3, lit ? G('red', 1) : C('blood', 0.2), mat);
-      mm.dot(hx + 1.4, hy - 0.3, lit ? G('red', 1) : C('blood', 0.2), mat);
-      mm.paint(hx, hy + 2.6, 2.4, mouth ? 1.6 : 0.9, C('gray', 0.06));
-      for (const k of [-1.6, 1.2]) mm.dot(hx + k, hy + 2, C('beige', 0.9));
-      if (mouth) mm.dot(hx - 0.2, hy + 3.4, C('blood', 0.5));
+      for (const side of [-1, 1]) mm.paint(...xy(h, side * 1.8, -0.3), 1.3, 0.6, lit ? G('yellow', 0.8) : C('yellow', 0.2), mat);
+      mm.dot(...xy(h, -1.8, -0.4), lit ? G('red', 1) : C('blood', 0.2), mat);
+      mm.dot(...xy(h, 1.4, -0.4), lit ? G('red', 1) : C('blood', 0.2), mat);
+      // Slit nostrils and a wide mouth full of teeth.
+      mm.dot(...xy(h, -0.6, 1.3), C('gray', 0.05));
+      mm.dot(...xy(h, 0.6, 1.3), C('gray', 0.05));
+      mm.paint(...xy(h, 0, 3), 3, mouth ? 1.7 : 1, C('gray', 0.05));
+      for (let k = -2.5; k <= 2.5; k += 1) mm.dot(...xy(h, k, mouth ? 2 : 2.5), C('beige', 0.9), MAT.bone);
+      if (mouth) for (let k = -2; k <= 2; k += 1) mm.dot(...xy(h, k, 4), C('beige', 0.85), MAT.bone);
+    },
+    clothes(mm, j) {
+      // Pale belly plates, a ridged chest, bony spikes on the shoulders.
+      for (let k = 0; k < 4; k++) mm.paint(...xy(j.belly, 0, -3.6 + k * 2.1), 2.7 - k * 0.25, 0.75, BELLY, MAT.bone);
+      for (const side of [-1, 1]) mm.stroke(...xy(j.chest, side * 0.6, -3.5), ...xy(j.chest, side * 4.2, -1.4), 0.6, HIDE_DARK);
+      for (const n of ['L', 'R']) {
+        const side = n === 'L' ? -1 : 1;
+        const sh = j[`shoulder${n}`];
+        mm.capsule(...at(sh, 0, -1, 1), ...at(sh, side * 3.5, -6, 1.5), 1.6, 0.3, HORN, MAT.bone);
+        mm.capsule(...at(sh, -side * 1.5, -1.5, 0), ...at(sh, -side * 0.5, -5, 0.5), 1.1, 0.2, HORN, MAT.bone);
+      }
+      grime(mm, 31, { amount: 0.4, region: (x, y) => y > j.neck[1] });
+    },
+    held(mm, j) {
+      for (const n of ['L', 'R']) {
+        const side = n === 'L' ? -1 : 1;
+        // Spines down the outside of the forearms, long claws, clawed feet.
+        const e = j[`elbow${n}`];
+        const hd = j[`hand${n}`];
+        const mid = [e[0] + (hd[0] - e[0]) * 0.4, e[1] + (hd[1] - e[1]) * 0.4, e[2] + (hd[2] - e[2]) * 0.4];
+        mm.capsule(...at(mid, side * 1.4, 0), ...at(mid, side * 3.6, -1.4), 0.8, 0.15, HORN, MAT.bone);
+        for (let k = -1; k <= 1; k++) mm.capsule(...at(hd, k * 1.3, 1, 1), ...at(hd, k * 1.9 + side * 0.4, 4.4, 1.8), 0.65, 0.15, HORN, MAT.bone);
+        const f = j[`foot${n}`];
+        for (let k = -1; k <= 1; k++) mm.capsule(...at(f, k * 1.3, 0, 2), ...at(f, k * 1.8, 1, 4), 0.6, 0.15, HORN, MAT.bone);
+      }
     },
   });
   if (gore) puddle(m, 32, 61, 12 + gore * 4, 2.5, C('blood', 0.28));
@@ -228,45 +287,91 @@ function impSheet() {
 }
 
 // ------------------------------------------------------------------ manager
+// A hulking, goat-legged brute with ram horns. It still wears its tie and
+// carries its briefcase.
 
-const GRAY_SKIN = mix(C('skin', 0.5), C('gray', 0.55), 0.4);
-const SUIT_GRAY = C('gray', 0.38);
+const BRUTE = mix(C('purple', 0.42), C('concrete', 0.42), 0.45);
+const BRUTE_DARK = darken(BRUTE, 0.42);
+const FUR = mix(C('rust', 0.2), C('gray', 0.18), 0.3);
+const RAM = mix(C('beige', 0.48), C('gray', 0.4), 0.4);
 
 function managerFrame(pose, { orb = false, caseOpen = false, noCase = false, gore = 0, mouth = false } = {}) {
   const m = new Model(64, 80, { seed: 37 });
-  const J = skeleton(64, 80, pose, { height: 62, build: 1.12 });
+  const J = skeleton(64, 80, { hunch: 2.5, ...pose }, { height: 62, build: 1.3, shoulders: 7.8 });
+  const at = along(pose);
+  const xy = (p, dx, dy) => at(p, dx, dy).slice(0, 2);
+  const lit = (pose.fall ?? 0) < 1;
   body(m, J, {
-    skin: GRAY_SKIN,
-    shirt: SUIT_GRAY,
-    pants: darken(SUIT_GRAY, 0.15),
-    shoes: C('gray', 0.06),
-    shoeMat: MAT.leather,
-    sleeve: 'long',
-    headShape: { rx: 4.5, ry: 5.2, rz: 4.6 },
-    clothes(mm, j) {
-      const [nx, ny] = j.neck;
-      const [cx, cy] = j.chest;
-      // White shirt V, red tie, lapels, pocket square.
-      mm.paintPoly([[nx - 3, ny + 1.5], [nx + 3, ny + 1.5], [cx, cy + 5]], C('beige', 0.85), MAT.cloth);
-      mm.stroke(nx, ny + 2.3, cx + 0.3, cy + 8, 1.7, C('blood', 0.5));
-      mm.stroke(nx - 3, ny + 1.6, cx - 1.3, cy + 5.5, 0.8, darken(SUIT_GRAY, 0.35));
-      mm.stroke(nx + 3, ny + 1.6, cx + 1.3, cy + 5.5, 0.8, darken(SUIT_GRAY, 0.35));
-      mm.paint(cx + 4.4, cy - 0.5, 1.2, 0.7, C('beige', 0.8));
-      grime(mm, 41, { amount: 0.25, region: (x, y) => y > ny });
-    },
-    face(mm, j) {
-      const [hx, hy, hz] = j.head;
+    skin: BRUTE,
+    skinMat: MAT.flesh,
+    shirt: BRUTE,
+    shirtMat: MAT.flesh,
+    pants: FUR,
+    pantsMat: MAT.fur,
+    shins: FUR,
+    shoes: C('gray', 0.07),
+    shoeMat: MAT.bone,
+    sleeve: 'none',
+    hands: BRUTE_DARK,
+    limbs: { thigh: 1.1, shin: 0.62, upper: 1.15, fore: 1.1 },
+    head(mm, j) {
+      const h = j.head;
+      // A heavy, bull-like head: wide skull, long snout, ram horns, tusks.
+      mm.ellipsoid(...at(h, 0, -1, 0), 4.8, 4.4, 4.6, BRUTE, MAT.flesh);
+      mm.ellipsoid(...at(h, 0, 2.6, 2.6), 3, 2.8, 3.4, BRUTE, MAT.flesh);
+      mm.ellipsoid(...at(h, 0, -2.1, 3.2), 4.2, 1.2, 1.6, BRUTE_DARK, MAT.flesh);
       for (const side of [-1, 1]) {
-        m.capsule(hx + side * 2.6, hy - 3.5, hz, hx + side * 3.8, hy - 7.5, hz - 0.5, 1.2, 0.3, C('beige', 0.55), MAT.bone);
-        m.ellipsoid(hx + side * 4, hy + 0.2, hz - 0.8, 1, 2, 1.6, C('gray', 0.3), MAT.hair);
+        const curl = [[3.4, -3.4, -0.5], [7, -5.6, -1], [9.4, -3, -1.2], [8.6, 0.6, -0.8], [6.6, 1.8, 0]].map(([dx, dy, dz]) => at(h, side * dx, dy, dz));
+        for (let k = 0; k < curl.length - 1; k++) mm.capsule(...curl[k], ...curl[k + 1], 2 - k * 0.4, 1.7 - k * 0.4, RAM, MAT.bone);
+        mm.capsule(...at(h, side * 4.4, 0.6, -0.8), ...at(h, side * 6.2, 2, -1.2), 1, 0.4, BRUTE, MAT.flesh); // ears
+        mm.capsule(...at(h, side * 1.7, 4.6, 4.4), ...at(h, side * 2.6, 2.4, 4.8), 0.6, 0.15, C('beige', 0.85), MAT.bone); // tusks
       }
-      const lit = (pose.fall ?? 0) < 1;
-      mm.paint(hx - 1.8, hy - 0.3, 1.2, 0.6, lit ? G('green', 1) : C('olive', 0.25), lit ? MAT.glow : MAT.flesh);
-      mm.paint(hx + 1.8, hy - 0.3, 1.2, 0.6, lit ? G('green', 1) : C('olive', 0.25), lit ? MAT.glow : MAT.flesh);
-      m.ellipsoid(hx, hy + 2.3, hz + 3.8, 2.3, 0.7, 1, C('gray', 0.18), MAT.hair); // moustache
-      mm.paint(hx, hy + 3.4, 1.5, mouth ? 1.2 : 0.5, C('blood', 0.15));
+      const glow = lit ? G('green', 1) : C('olive', 0.25);
+      for (const side of [-1, 1]) mm.paint(...xy(h, side * 2, -0.9), 1.1, 0.55, glow, lit ? MAT.glow : MAT.flesh);
+      for (const side of [-1, 1]) mm.dot(...xy(h, side * 0.9, 2.9), C('gray', 0.04));
+      mm.paint(...xy(h, 0, 4.9), 2.4, mouth ? 1.2 : 0.45, C('gray', 0.05));
+    },
+    clothes(mm, j) {
+      // Slabs of muscle.
+      for (const side of [-1, 1]) mm.stroke(...xy(j.chest, side * 0.4, -0.6), ...xy(j.chest, side * 6, 1.6), 0.7, BRUTE_DARK);
+      for (let k = 0; k < 3; k++) mm.stroke(...xy(j.belly, -2.6, -2.8 + k * 2.4), ...xy(j.belly, 2.6, -2.8 + k * 2.4), 0.5, BRUTE_DARK);
+      mm.stroke(...xy(j.belly, 0, -4), ...xy(j.belly, 0, 4.4), 0.5, BRUTE_DARK);
+      // The collar and tie are all that's left of the suit.
+      mm.stroke(...xy(j.neck, -3, 1.4), ...xy(j.neck, 3, 1.4), 0.9, C('beige', 0.85), MAT.cloth);
+      mm.paint(...xy(j.neck, 0, 2.5), 1.3, 1, C('blood', 0.42), MAT.cloth);
+      mm.stroke(...xy(j.neck, 0, 3.2), ...xy(j.chest, 0.4, 7), 1.8, C('blood', 0.5), MAT.cloth);
+      // Bony spurs on the shoulders, shaggy fur at the hips.
+      for (const n of ['L', 'R']) {
+        const side = n === 'L' ? -1 : 1;
+        const sh = j[`shoulder${n}`];
+        mm.capsule(...at(sh, 0, -1.4, 1), ...at(sh, side * 3.4, -7, 1.2), 1.9, 0.3, RAM, MAT.bone);
+        mm.capsule(...at(sh, side * 2, -0.6, 1), ...at(sh, side * 6, -4, 1), 1.5, 0.25, RAM, MAT.bone);
+      }
+      // Shaggy goat legs: clumps of fur down to the knees.
+      mm.ellipsoid(...j.pelvis, 6.6 * 1.3, 2.4, 4.6, FUR, MAT.fur);
+      for (const n of ['L', 'R']) {
+        const side = n === 'L' ? -1 : 1;
+        const hip = j[`hip${n}`];
+        const knee = j[`knee${n}`];
+        for (let k = 0; k <= 4; k++) {
+          const t = k / 4;
+          const p = [hip[0] + (knee[0] - hip[0]) * t, hip[1] + (knee[1] - hip[1]) * t, hip[2] + (knee[2] - hip[2]) * t];
+          mm.ellipsoid(...at(p, side * (0.8 + (k % 2) * 0.9), 0.6, 0.4), 4.6 - t * 1.2, 3.4, 4.2 - t, k % 2 ? darken(FUR, 0.15) : FUR, MAT.fur);
+        }
+        mm.ellipsoid(...at(knee, side * 0.6, 1.6, 0.6), 3.4, 2.6, 3.2, FUR, MAT.fur);
+        for (let k = -2; k <= 2; k++) mm.stroke(...xy(hip, k * 1.6, 1), ...xy(knee, k * 1.9 + side * 0.4, 3.4), 0.45, darken(FUR, 0.4));
+      }
+      grime(mm, 41, { amount: 0.25, region: (x, y) => y > j.neck[1] });
     },
     held(mm, j) {
+      // Claws, split hooves and tufts of fur above them.
+      for (const n of ['L', 'R']) {
+        const hd = j[`hand${n}`];
+        for (let k = -1; k <= 1; k++) mm.capsule(...at(hd, k * 1.5, 1.4, 1.4), ...at(hd, k * 2, 4.6, 2.2), 0.75, 0.15, C('beige', 0.7), MAT.bone);
+        const f = j[`foot${n}`];
+        mm.ellipsoid(...at(j[`ankle${n}`], 0, 0, 0.6), 3, 1.8, 3, FUR, MAT.fur);
+        mm.stroke(...xy(f, 0, -1), ...xy(f, 0, 1.6), 0.5, C('gray', 0.02));
+      }
       if (noCase) return;
       const [x, y, z] = j.handL;
       mm.slab([[x - 6, y + 1], [x + 4, y + 1], [x + 4, y + 9], [x - 6, y + 9]], z + 1, C('rust', 0.28), MAT.leather, { bevel: 1.4, thickness: 1 });

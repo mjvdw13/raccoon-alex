@@ -7,6 +7,10 @@ export const effects = [
   defineEffect({ id: 'blood', sheet: FX('blood', 16, 16), anims: { idle: { frames: [0, 1, 2], fps: 10 } }, rise: -0.4 }),
   defineEffect({ id: 'explosion', sheet: FX('explosion', 64, 64), anims: { idle: { frames: [0, 1, 2, 3, 4], fps: 12 } }, fullbright: true }),
   defineEffect({ id: 'teleport-fog', sheet: FX('teleport-fog', 48, 64), anims: { idle: { frames: [0, 1, 2, 3, 4, 5], fps: 10 } }, fullbright: true }),
+  // Speech bubbles that pop up beside a coworker when they react.
+  ...['dots', 'question', 'exclaim', 'heart', 'ugh', 'sec'].map((name, frame) =>
+    defineEffect({ id: `bubble-${name}`, sheet: FX('bubbles', 24, 20), anims: { idle: { frames: [frame], durations: [1.6] } }, fullbright: true, rise: 0.04 }),
+  ),
 ];
 
 export const projectiles = [

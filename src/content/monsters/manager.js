@@ -1,7 +1,8 @@
 import { defineMonster } from '../../engine/defs.js';
 
-// A towering middle manager who lobs glowing green Performance Improvement
-// Plans and has a devastating briefcase backhand (Doom's hell knight).
+// A towering, goat-legged brute that still wears its tie. It lobs glowing green
+// Performance Improvement Plans and has a devastating briefcase backhand
+// (Doom's hell knight).
 export default defineMonster({
   id: 'manager',
   name: 'Middle Manager',

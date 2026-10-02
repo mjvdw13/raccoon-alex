@@ -1,6 +1,7 @@
 import { defineMonster } from '../../engine/defs.js';
 
-// A possessed unpaid intern with a staple gun (Doom's zombieman).
+// What's left of an unpaid intern: a rotting, shambling corpse with a staple
+// gun (Doom's zombieman).
 export default defineMonster({
   id: 'intern',
   name: 'Zombie Intern',

@@ -9,6 +9,7 @@ import { fonts, images, sheets } from './ui.js';
 import ammo from './ammo.js';
 import weapons from './weapons/index.js';
 import monsters from './monsters/index.js';
+import coworkers from './coworkers.js';
 import items from './items/index.js';
 import decorations from './decor.js';
 import { effects, projectiles } from './effects.js';
@@ -30,7 +31,7 @@ export default {
   sheets,
   ammo,
   weapons,
-  things: [...monsters, ...items, ...decorations, ...effects, ...projectiles],
+  things: [...monsters, ...coworkers, ...items, ...decorations, ...effects, ...projectiles],
   sounds,
   songs,
   legend,

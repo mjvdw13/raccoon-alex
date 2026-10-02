@@ -78,6 +78,12 @@ export function validateContent(reg) {
       checkSound(owner, t.sound);
     }
     if (t.kind === 'projectile' && !t.anims.fly && !t.anims.idle) err(`${owner}: needs a "fly" animation`);
+    if (t.kind === 'npc') {
+      if (!t.anims.idle) err(`${owner}: needs an "idle" animation`);
+      if ((t.wander ?? 0) > 0 && !t.anims.walk) warn(`${owner}: wanders but has no "walk" animation (it will stand still)`);
+      if (t.bubble && !reg.things.has(t.bubble)) err(`${owner}: unknown speech bubble effect "${t.bubble}"`);
+      if (!Array.isArray(t.lines)) err(`${owner}: "lines" must be a list of strings`);
+    }
     if (t.kind === 'decoration' && t.explode?.effect && !reg.things.has(t.explode.effect)) {
       err(`${owner}: unknown explosion effect "${t.explode.effect}"`);
     }

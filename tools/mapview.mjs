@@ -8,9 +8,9 @@
 // Walls and floors use their texture's average colour (floors are dimmed by
 // their light level). Doors are brown, or the colour of their key; switches
 // have a yellow border; secret tiles are dotted purple; damaging floors are
-// striped green. Monsters are red squares, items yellow, keys and weapons
-// bright, decorations grey, the start is a white arrow. Areas the player can
-// never reach are cross-hatched.
+// striped green. Monsters are red squares, coworkers green, items yellow,
+// keys and weapons bright, decorations grey, the start is a white arrow.
+// Areas the player can never reach are cross-hatched.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -136,6 +136,9 @@ function render(level) {
       const c = keyCol ?? (weapon ? [255, 255, 255] : [240, 210, 60]);
       const r = keyCol || weapon ? k : Math.max(1, k >> 1);
       rect(x - r, y - r, r * 2, r * 2, c);
+    } else if (def?.kind === 'npc') {
+      rect(x - k, y - k, k * 2, k * 2, [40, 230, 90]);
+      frame(x - k - 1, y - k - 1, k * 2 + 2, k * 2 + 2, [0, 0, 0]);
     } else if (def?.kind === 'decoration') {
       rect(x - 1, y - 1, 2, 2, [150, 150, 150]);
     }

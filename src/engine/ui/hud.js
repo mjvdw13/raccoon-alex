@@ -214,7 +214,10 @@ export class Hud {
     if (this.revealThings) {
       for (const t of world.things) {
         if (t === pt || t.removed) continue;
-        const c = t.kind === 'monster' ? (t.dead ? pal.ramp('gray', 0.4) : pal.ramp('glow-red', 1)) : t.kind === 'item' ? pal.ramp('glow-yellow', 0.6) : pal.ramp('steel', 0.6);
+        let c = pal.ramp('steel', 0.6);
+        if (t.kind === 'monster') c = t.dead ? pal.ramp('gray', 0.4) : pal.ramp('glow-red', 1);
+        else if (t.kind === 'npc') c = pal.ramp('glow-green', 1);
+        else if (t.kind === 'item') c = pal.ramp('glow-yellow', 0.6);
         s.fillRect(sx(t.x) - 1, sy(t.y) - 1, 2, 2, c);
       }
     }

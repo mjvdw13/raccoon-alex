@@ -1,6 +1,7 @@
 import { buildLevel } from './level.js';
 import { F_SECRET, F_DAMAGE, F_EXIT, F_USE } from './tilemap.js';
-import { castRay, blockedByMap } from './physics.js';
+import { initNpc, npcThink, npcReact } from '../things/npc.js';
+import { castRay, blockedByMap, rayCircle } from './physics.js';
 import { updateDoors, openDoor, closeDoor } from './doors.js';
 import { LightEffects } from './lights.js';
 import { FlowField } from './nav.js';
@@ -55,6 +56,8 @@ export class World {
     this.restartRequested = false;
     this.lastNoise = -1;
     this.floorTimer = 0;
+    /** The friendly NPC the player last walked into (it reacts on its next think). */
+    this.playerBumped = null;
 
     const slot = this.assets ? (id) => this.assets.textureSlot(id) : () => 0;
     const built = buildLevel(this.registry, level, { skill, textureSlot: slot });
@@ -150,6 +153,7 @@ export class World {
       t.setAnim('walk');
     }
     if (def.kind === 'monster') t.timer = this.rng.range(0, 0.3);
+    if (def.kind === 'npc') initNpc(this, t);
     if (def.kind === 'decoration' && def.hanging) t.z = 1 - (t.sheet ? (t.sheet.fh / 64) * (def.scale ?? 1) : t.height);
     this.things.push(t);
     def.hooks?.onSpawn?.(this, t);
@@ -186,7 +190,10 @@ export class World {
       if (dx * dx + dy * dy < r * r) {
         // Allow moving apart if already overlapping.
         const before = (o.x - t.x) ** 2 + (o.y - t.y) ** 2;
-        if (dx * dx + dy * dy < before) return false;
+        if (dx * dx + dy * dy < before) {
+          if (t === this.player && o.kind === 'npc') this.playerBumped = o;
+          return false;
+        }
       }
     }
     return true;
@@ -301,6 +308,15 @@ export class World {
     const dx = Math.cos(pt.angle);
     const dy = Math.sin(pt.angle);
     const hit = castRay(this.map, pt.x, pt.y, dx, dy, USE_RANGE);
+    // Coworkers in front of the player get talked to first.
+    for (const t of this.things) {
+      if (t.kind !== 'npc' || t.removed) continue;
+      const d = rayCircle(pt.x, pt.y, dx, dy, t.x, t.y, t.radius + 0.1);
+      if (d >= 0 && d < Math.min(hit.dist, USE_RANGE)) {
+        npcReact(this, t);
+        return;
+      }
+    }
     if (hit.door) {
       this._useDoor(hit.door, pt);
       return;
@@ -415,6 +431,9 @@ export class World {
           break;
         case 'effect':
           effectThink(this, t, dt);
+          break;
+        case 'npc':
+          npcThink(this, t, dt);
           break;
         default:
           applyMomentum(this, t, dt);

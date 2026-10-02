@@ -4,9 +4,14 @@
 // Sheet layout (24x30 frames): five rows of health tiers (healthy -> wrecked),
 // each with 8 frames: [look ahead, look left, look right, turn right, turn left,
 // ouch, evil grin, rampage]; then a final row: [well rested (god mode), dead].
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { PixelCanvas, mix, darken, lighten } from '../lib/canvas.js';
 import { C, G } from '../lib/pal.js';
 import { Model, MAT } from '../lib/model.js';
+import { loadPhoto, pointMap } from '../lib/photo.js';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
 export const FACE_W = 24;
 export const FACE_H = 30;
@@ -184,98 +189,134 @@ export function faceSheet() {
   return sheet;
 }
 
-/** Used by the "Employee of the Month" poster texture. */
-export const drawFace = (o) => faceModel(o, 1);
+export default [
+  { name: 'face', out: 'assets/ui/face.png', draw: faceSheet, dither: 'fs' },
+  { name: 'alex-photo', out: 'assets/custom/alex.png', draw: alexPhotoPortrait, raw: true },
+];
 
-export default [{ name: 'face', out: 'assets/ui/face.png', draw: faceSheet, dither: 'fs' }];
+/**
+ * The head-and-shoulders portrait shared by the drawn title portrait and the
+ * photo version: collar and tie, neck, head, ears, then `face(m, P)` draws
+ * the face, then the messy hair goes on top. Laid out at 72x90; k scales it.
+ */
+function portrait(k, skin, face) {
+  const P = (v) => v * k;
+  const pts = (list) => list.map(([x, y]) => [P(x), P(y)]);
+  const m = new Model(P(72), P(90), { seed: 4242 });
+  const hair = HAIR;
+  // Shoulders, collar, loosened tie.
+  m.slab(pts([[0, 90], [2, 80], [16, 74], [36, 77], [56, 74], [70, 80], [72, 90]]), P(4), C('beige', 0.82), MAT.cloth, { bevel: P(4), thickness: P(3) });
+  m.capsule(P(36), P(62), P(4), P(36), P(78), P(4), P(8), P(9.5), darken(skin, 0.3), MAT.skin);
+  m.slab(pts([[23, 73], [35, 79], [29, 87], [20, 79]]), P(10), C('beige', 0.92), MAT.cloth, { bevel: P(1.5), thickness: P(1.5) });
+  m.slab(pts([[49, 73], [37, 79], [43, 87], [52, 79]]), P(10), C('beige', 0.92), MAT.cloth, { bevel: P(1.5), thickness: P(1.5) });
+  m.slab(pts([[33, 80], [40, 79], [39, 84], [34, 85]]), P(12), C('blood', 0.42), MAT.cloth, { bevel: P(1.5), thickness: P(1) });
+  m.slab(pts([[34, 84], [39, 83], [42, 90], [32, 90]]), P(11), C('blood', 0.38), MAT.cloth, { bevel: P(1.5), thickness: P(1) });
+  // Head, jaw, chin, ears.
+  m.ellipsoid(P(36), P(39), P(2), P(18), P(22.5), P(16), skin, MAT.skin);
+  m.ellipsoid(P(36), P(52), P(4), P(14.5), P(10.5), P(13), skin, MAT.skin);
+  m.sphere(P(36), P(59), P(9), P(6.2), skin, MAT.skin);
+  m.ellipsoid(P(17.6), P(42), 0, P(3.8), P(6.4), P(3.4), darken(skin, 0.06), MAT.skin);
+  m.ellipsoid(P(54.4), P(42), 0, P(3.8), P(6.4), P(3.4), darken(skin, 0.06), MAT.skin);
+  face(m, P);
+  // Messy hair.
+  m.ellipsoid(P(36), P(22), P(2), P(19.5), P(12.5), P(15.5), hair, MAT.hair);
+  m.ellipsoid(P(18.5), P(31), P(2), P(3.6), P(7.5), P(5), hair, MAT.hair);
+  m.ellipsoid(P(53.5), P(31), P(2), P(3.6), P(7.5), P(5), hair, MAT.hair);
+  const r = (n) => {
+    const v = Math.sin(n * 91.7 + 13.1) * 43758.5;
+    return v - Math.floor(v);
+  };
+  for (let n = 0; n < 16; n++) {
+    // Fringe falling forward over the forehead.
+    const x = 20 + n * 2.1;
+    m.capsule(P(x), P(16), P(13), P(x + (r(n) - 0.5) * 5), P(25 + r(n + 40) * 4), P(15), P(2.6), P(0.9), hair, MAT.hair);
+  }
+  for (let n = 0; n < 11; n++) {
+    // Bed-head strands sticking out of the top.
+    const a = -Math.PI / 2 + (n - 5) * 0.26 + (r(n + 80) - 0.5) * 0.3;
+    const x0 = 36 + Math.cos(a) * 12.5;
+    const y0 = 20 + Math.sin(a) * 8.5;
+    const len = 4 + r(n + 120) * 4;
+    m.capsule(P(x0), P(y0), P(8), P(x0 + Math.cos(a) * len), P(y0 + Math.sin(a) * len), P(6), P(2.2), P(0.7), hair, MAT.hair);
+  }
+  return m.render({ light: [-0.35, -0.42, 0.84], ambient: 0.4, aoStrength: 0.45, contrast: 1.05 });
+}
 
 /**
  * The 72x90 ID-badge portrait for the title screen: same guy, more detail.
  * Heavy lids, bloodshot eyes and the famous two-tier bags.
  */
 export function alexPortrait() {
-  const m = new Model(72, 90, { seed: 4242 });
   const skin = mix(C('skin', 0.72), C('olive', 0.6), 0.1);
   const hair = HAIR;
   const lid = darken(skin, 0.16);
   const bag = mix(skin, mix(C('purple', 0.28), C('rust', 0.22), 0.4), 0.62);
   const crease = mix(skin, C('purple', 0.1), 0.85);
-  // Shoulders, collar, loosened tie.
-  m.slab([[0, 90], [2, 80], [16, 74], [36, 77], [56, 74], [70, 80], [72, 90]], 4, C('beige', 0.82), MAT.cloth, { bevel: 4, thickness: 3 });
-  m.capsule(36, 62, 4, 36, 78, 4, 8, 9.5, darken(skin, 0.3), MAT.skin);
-  m.slab([[23, 73], [35, 79], [29, 87], [20, 79]], 10, C('beige', 0.92), MAT.cloth, { bevel: 1.5, thickness: 1.5 });
-  m.slab([[49, 73], [37, 79], [43, 87], [52, 79]], 10, C('beige', 0.92), MAT.cloth, { bevel: 1.5, thickness: 1.5 });
-  m.slab([[33, 80], [40, 79], [39, 84], [34, 85]], 12, C('blood', 0.42), MAT.cloth, { bevel: 1.5, thickness: 1 });
-  m.slab([[34, 84], [39, 83], [42, 90], [32, 90]], 11, C('blood', 0.38), MAT.cloth, { bevel: 1.5, thickness: 1 });
-  // Head.
-  m.ellipsoid(36, 39, 2, 18, 22.5, 16, skin, MAT.skin);
-  m.ellipsoid(36, 52, 4, 14.5, 10.5, 13, skin, MAT.skin);
-  m.sphere(36, 59, 9, 6.2, skin, MAT.skin);
-  m.ellipsoid(17.6, 42, 0, 3.8, 6.4, 3.4, darken(skin, 0.06), MAT.skin);
-  m.ellipsoid(54.4, 42, 0, 3.8, 6.4, 3.4, darken(skin, 0.06), MAT.skin);
-  m.ellipsoid(26, 47.5, 9.5, 6.4, 4.8, 5.8, skin, MAT.skin);
-  m.ellipsoid(46, 47.5, 9.5, 6.4, 4.8, 5.8, skin, MAT.skin);
-  m.ellipsoid(36, 32, 11.5, 14, 3.2, 4.8, skin, MAT.skin);
-  m.capsule(36, 34.5, 14, 36, 46.5, 18, 2.3, 3.2, skin, MAT.skin);
-  m.sphere(36, 47.5, 17, 3.6, lighten(skin, 0.03), MAT.skin);
-  m.dent(33.2, 49.6, 1.3, 0.9, 1.2);
-  m.dent(38.8, 49.6, 1.3, 0.9, 1.2);
-  // Stubble.
-  m.tint((x, y, c) => {
-    if (y < 50 || y > 66 || Math.abs(x - 36) > 16 || (Math.abs(x - 36) < 4 && y < 53)) return undefined;
-    const h = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
-    return h - Math.floor(h) < 0.45 ? mix(c, C('rust', 0.18), 0.28) : undefined;
+  return portrait(1, skin, (m) => {
+    m.ellipsoid(26, 47.5, 9.5, 6.4, 4.8, 5.8, skin, MAT.skin);
+    m.ellipsoid(46, 47.5, 9.5, 6.4, 4.8, 5.8, skin, MAT.skin);
+    m.ellipsoid(36, 32, 11.5, 14, 3.2, 4.8, skin, MAT.skin);
+    m.capsule(36, 34.5, 14, 36, 46.5, 18, 2.3, 3.2, skin, MAT.skin);
+    m.sphere(36, 47.5, 17, 3.6, lighten(skin, 0.03), MAT.skin);
+    m.dent(33.2, 49.6, 1.3, 0.9, 1.2);
+    m.dent(38.8, 49.6, 1.3, 0.9, 1.2);
+    // Stubble.
+    m.tint((x, y, c) => {
+      if (y < 50 || y > 66 || Math.abs(x - 36) > 16 || (Math.abs(x - 36) < 4 && y < 53)) return undefined;
+      const h = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+      return h - Math.floor(h) < 0.45 ? mix(c, C('rust', 0.18), 0.28) : undefined;
+    });
+    // Eyes, lids and the bags.
+    for (const ex of [27.6, 44.4]) {
+      const out = ex < 36 ? -1 : 1;
+      m.paint(ex, 41, 7.6, 5, mix(skin, C('purple', 0.22), 0.32)); // dark circles
+      m.dent(ex, 38, 6, 3.4, 1.1);
+      // Puffy bags: two tiers of swollen crescents.
+      m.ellipsoid(ex + out * 0.3, 42.6, 12.8, 5.8, 2.3, 2.5, bag, MAT.skin);
+      m.ellipsoid(ex + out * 0.6, 46, 12, 4.8, 1.8, 2.1, mix(skin, bag, 0.7), MAT.skin);
+      m.stroke(ex - 5, 44.3, ex, 45.2, 1, crease);
+      m.stroke(ex, 45.2, ex + 5, 44.3, 1, crease);
+      m.stroke(ex - 3.8 + out * 0.6, 47.7, ex + 3.8 + out * 0.6, 47.7, 0.9, mix(skin, crease, 0.7));
+      // Bloodshot eye under a heavy lid.
+      m.paint(ex, 38.5, 4.5, 2.3, mix(C('beige', 0.94), C('flesh', 0.7), 0.12), MAT.eye);
+      m.paint(ex + 0.4, 38.7, 2, 2, C('rust', 0.32), MAT.eye);
+      m.paint(ex + 0.4, 38.7, 1, 1, C('gray', 0.05), MAT.eye);
+      m.dot(ex - 0.6, 37.9, C('beige', 1), MAT.eye);
+      m.dot(ex - out * 3.4, 39, C('blood', 0.6), MAT.eye);
+      m.dot(ex + out * 3.6, 38.4, C('blood', 0.55), MAT.eye);
+      m.paint(ex, 36.5, 5.1, 1.8, lid);
+      m.stroke(ex - 4.4, 37.6, ex + 4.4, 37.6, 0.8, darken(skin, 0.5));
+      // Droopy eyebrows.
+      m.stroke(ex - out * 5.4, 33.4, ex + out * 1.2, 32.2, 2, hair);
+      m.stroke(ex - out * 5.4, 33.4, ex - out * 6.6, 34.6, 1.5, hair);
+    }
+    // Flat, unimpressed mouth.
+    m.paint(36, 54, 6.4, 1, darken(skin, 0.1));
+    m.stroke(30, 55.2, 42, 55.2, 1.1, mix(darken(skin, 0.45), C('blood', 0.3), 0.3));
+    m.stroke(30, 55.2, 28.5, 56.4, 0.9, darken(skin, 0.35));
+    m.stroke(42, 55.2, 43.5, 56.4, 0.9, darken(skin, 0.35));
+    m.paint(36, 57, 4.5, 0.9, mix(skin, C('flesh', 0.6), 0.25));
   });
-  // Eyes, lids and the bags.
-  for (const ex of [27.6, 44.4]) {
-    const out = ex < 36 ? -1 : 1;
-    m.paint(ex, 41, 7.6, 5, mix(skin, C('purple', 0.22), 0.32)); // dark circles
-    m.dent(ex, 38, 6, 3.4, 1.1);
-    // Puffy bags: two tiers of swollen crescents.
-    m.ellipsoid(ex + out * 0.3, 42.6, 12.8, 5.8, 2.3, 2.5, bag, MAT.skin);
-    m.ellipsoid(ex + out * 0.6, 46, 12, 4.8, 1.8, 2.1, mix(skin, bag, 0.7), MAT.skin);
-    m.stroke(ex - 5, 44.3, ex, 45.2, 1, crease);
-    m.stroke(ex, 45.2, ex + 5, 44.3, 1, crease);
-    m.stroke(ex - 3.8 + out * 0.6, 47.7, ex + 3.8 + out * 0.6, 47.7, 0.9, mix(skin, crease, 0.7));
-    // Bloodshot eye under a heavy lid.
-    m.paint(ex, 38.5, 4.5, 2.3, mix(C('beige', 0.94), C('flesh', 0.7), 0.12), MAT.eye);
-    m.paint(ex + 0.4, 38.7, 2, 2, C('rust', 0.32), MAT.eye);
-    m.paint(ex + 0.4, 38.7, 1, 1, C('gray', 0.05), MAT.eye);
-    m.dot(ex - 0.6, 37.9, C('beige', 1), MAT.eye);
-    m.dot(ex - out * 3.4, 39, C('blood', 0.6), MAT.eye);
-    m.dot(ex + out * 3.6, 38.4, C('blood', 0.55), MAT.eye);
-    m.paint(ex, 36.5, 5.1, 1.8, lid);
-    m.stroke(ex - 4.4, 37.6, ex + 4.4, 37.6, 0.8, darken(skin, 0.5));
-    // Droopy eyebrows.
-    m.stroke(ex - out * 5.4, 33.4, ex + out * 1.2, 32.2, 2, hair);
-    m.stroke(ex - out * 5.4, 33.4, ex - out * 6.6, 34.6, 1.5, hair);
-  }
-  // Flat, unimpressed mouth.
-  m.paint(36, 54, 6.4, 1, darken(skin, 0.1));
-  m.stroke(30, 55.2, 42, 55.2, 1.1, mix(darken(skin, 0.45), C('blood', 0.3), 0.3));
-  m.stroke(30, 55.2, 28.5, 56.4, 0.9, darken(skin, 0.35));
-  m.stroke(42, 55.2, 43.5, 56.4, 0.9, darken(skin, 0.35));
-  m.paint(36, 57, 4.5, 0.9, mix(skin, C('flesh', 0.6), 0.25));
-  // Messy hair.
-  m.ellipsoid(36, 22, 2, 19.5, 12.5, 15.5, hair, MAT.hair);
-  m.ellipsoid(18.5, 31, 2, 3.6, 7.5, 5, hair, MAT.hair);
-  m.ellipsoid(53.5, 31, 2, 3.6, 7.5, 5, hair, MAT.hair);
-  const r = (k) => {
-    const v = Math.sin(k * 91.7 + 13.1) * 43758.5;
-    return v - Math.floor(v);
-  };
-  for (let k = 0; k < 16; k++) {
-    // Fringe falling forward over the forehead.
-    const x = 20 + k * 2.1;
-    m.capsule(x, 16, 13, x + (r(k) - 0.5) * 5, 25 + r(k + 40) * 4, 15, 2.6, 0.9, hair, MAT.hair);
-  }
-  for (let k = 0; k < 11; k++) {
-    // Bed-head strands sticking out of the top.
-    const a = -Math.PI / 2 + (k - 5) * 0.26 + (r(k + 80) - 0.5) * 0.3;
-    const x0 = 36 + Math.cos(a) * 12.5;
-    const y0 = 20 + Math.sin(a) * 8.5;
-    const len = 4 + r(k + 120) * 4;
-    m.capsule(x0, y0, 8, x0 + Math.cos(a) * len, y0 + Math.sin(a) * len, 6, 2.2, 0.7, hair, MAT.hair);
-  }
-  return m.render({ light: [-0.35, -0.42, 0.84], ambient: 0.4, aoStrength: 0.45, contrast: 1.05 });
+}
+
+/**
+ * Alex's real face for the status bar and the title badge. His photo
+ * (assets/custom/alex-closeup.png) is cropped too tight to use on its own, so it
+ * goes onto the portrait's modelled head, under the hair, lined up by the eyes.
+ * Saved in full colour as assets/custom/alex.png (216x270): the game shrinks it,
+ * crunches it into the palette and adds the bags and bruises itself.
+ */
+export function alexPhotoPortrait() {
+  const photo = loadPhoto(path.join(root, 'assets/custom/alex-closeup.png'));
+  const c = portrait(3, [158, 120, 104], (m, P) => {
+    // The photo is tilted: map its eyes onto the portrait's eyes.
+    const map = pointMap([[P(27.6), P(38.5)], [P(44.4), P(38.5)]], [[60, 85], [185, 60]]);
+    m.imprint(photo, P(36.6), P(47), P(15.2), P(20.5), map, { feather: P(4), level: 132 });
+  });
+  // More colour and softer highlights, so the skin survives the palette crunch.
+  return c.eachOpaque((x, y, [r, g, b]) => {
+    const l = r * 0.3 + g * 0.59 + b * 0.11;
+    const soft = (v) => (v < 190 ? v : 190 + (v - 190) * 0.45);
+    return [r, g, b].map((v) => Math.max(0, Math.min(255, soft(l + (v - l) * 1.4))));
+  });
 }

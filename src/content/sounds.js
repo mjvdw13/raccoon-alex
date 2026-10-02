@@ -218,4 +218,36 @@ export default [
   defineSound({ id: 'king-stomp', synth: { ...thump(55, 25, 0.35, 1), layers: [burst(0.2, [900, 150], 0.5, 6)] } }),
   defineSound({ id: 'king-ring', synth: ring(820, 45, 0.035, 0.5) }),
   defineSound({ id: 'bell-launch', synth: { wave: 'triangle', freq: 880, duration: 0.6, release: 0.5, volume: 0.45, vibrato: { rate: 7, depth: 0.3 }, layers: [{ wave: 'noise', duration: 0.4, attack: 0.02, release: 0.3, lowpass: [600, 3000], volume: 0.5 }] } }),
+
+  // --------------------------------------------------------- coworkers
+  defineSound({
+    id: 'npc-sigh', // a long, tired exhale
+    synth: {
+      wave: 'noise', duration: 1.1, attack: 0.2, decay: 0.3, sustain: 0.6, release: 0.6, lowpass: [1700, 380], volume: 0.35,
+      layers: [{ wave: 'saw', freq: 180, freqEnd: 115, duration: 0.9, attack: 0.12, release: 0.5, lowpass: 480, volume: 0.1, vibrato: { rate: 4, depth: 0.3 } }],
+    },
+  }),
+  defineSound({
+    id: 'npc-hmph', // an unimpressed "hm"
+    synth: { wave: 'saw', freq: 165, freqEnd: 150, duration: 0.24, attack: 0.02, release: 0.14, lowpass: 600, volume: 0.32, layers: [{ wave: 'noise', duration: 0.12, release: 0.1, lowpass: 1300, volume: 0.22 }] },
+  }),
+  defineSound({
+    id: 'npc-phone', // tinny chatter from the handset
+    synth: {
+      wave: 'square', freq: 620, duration: 0.07, attack: 0.005, release: 0.05, highpass: 500, lowpass: 2200, volume: 0.22, vibrato: { rate: 18, depth: 2 },
+      repeat: { count: 6, interval: 0.1, decay: 0.93, pitch: 1.04 },
+      layers: [{ wave: 'square', freq: 470, duration: 0.06, release: 0.05, highpass: 500, lowpass: 2000, volume: 0.18, delay: 0.05, repeat: { count: 5, interval: 0.12, pitch: 0.97 } }],
+    },
+  }),
+  defineSound({
+    id: 'npc-huh', // a rising "huh?"
+    synth: { wave: 'saw', freq: 150, freqEnd: 290, slide: 0.26, duration: 0.32, attack: 0.03, release: 0.15, lowpass: 900, volume: 0.32, vibrato: { rate: 6, depth: 0.2 } },
+  }),
+  defineSound({
+    id: 'npc-yay', // a happy little "yay!"
+    synth: {
+      wave: 'triangle', freq: 520, freqEnd: 780, slide: 0.12, duration: 0.3, attack: 0.02, release: 0.14, volume: 0.4, vibrato: { rate: 9, depth: 0.4 },
+      layers: [{ wave: 'triangle', freq: 780, freqEnd: 1040, duration: 0.25, delay: 0.16, release: 0.15, volume: 0.32 }],
+    },
+  }),
 ];

@@ -36,7 +36,7 @@ function solve(shoulder, target, l1, l2, hint) {
 /**
  * Compute joints for a pose.
  * pose: { bob, lean, hunch, headTilt, headLift, x,
- *         armL/armR: { spread, swing, bend, reach: [x,y,z] },
+ *         armL/armR: { spread, swing, bend, reach: [x,y,z], hint: [out,down,forward] },
  *         legL/legR: { thigh, knee, spread },
  *         fall: radians (topple sideways), crouch }
  * dims: { height: 50, build: 1, shoulders: 7.5, hips: 3.4 }
@@ -86,7 +86,9 @@ export function skeleton(w, h, pose = {}, dims = {}) {
     let elbow;
     let hand;
     if (ap.reach) {
-      ({ elbow, hand } = solve(shoulder, ap.reach, L.upper, L.fore, [side, 0.8, -0.5]));
+      // `hint` says which way the elbow points (out, down, toward the viewer).
+      const hint = ap.hint ? [side * ap.hint[0], ap.hint[1], ap.hint[2]] : [side, 0.8, -0.5];
+      ({ elbow, hand } = solve(shoulder, ap.reach, L.upper, L.fore, hint));
     } else {
       elbow = add(shoulder, limbDir(side, ap.spread ?? 10, ap.swing ?? 0), L.upper);
       hand = add(elbow, limbDir(side, (ap.spread ?? 10) + (ap.spread2 ?? 0), (ap.swing ?? 0) + (ap.bend ?? 15)), L.fore);
@@ -117,6 +119,7 @@ export function skeleton(w, h, pose = {}, dims = {}) {
 /**
  * Model a humanoid from joints. style: colours/materials and optional hooks:
  *   { skin, shirt, sleeve ('short'|'long'), pants, shoes, hair, headShape: {rx, ry, rz},
+ *     limbs: {thigh, shin, upper, fore} (thickness multipliers),
  *     face(m, J), clothes(m, J), held(m, J) }
  */
 export function body(m, J, style = {}) {
@@ -128,11 +131,12 @@ export function body(m, J, style = {}) {
   const skinMat = style.skinMat ?? MAT.skin;
   const shirtMat = style.shirtMat ?? MAT.cloth;
   const pantsMat = style.pantsMat ?? MAT.cloth;
+  const limbs = { thigh: 1, shin: 1, upper: 1, fore: 1, ...style.limbs };
 
   // Legs.
   for (const n of ['L', 'R']) {
-    m.capsule(...J[`hip${n}`], ...J[`knee${n}`], 3.3 * b * s, 2.7 * b * s, pants, pantsMat);
-    m.capsule(...J[`knee${n}`], ...J[`ankle${n}`], 2.6 * b * s, 1.9 * b * s, style.shins ?? pants, pantsMat);
+    m.capsule(...J[`hip${n}`], ...J[`knee${n}`], 3.3 * b * s * limbs.thigh, 2.7 * b * s * limbs.thigh, pants, pantsMat);
+    m.capsule(...J[`knee${n}`], ...J[`ankle${n}`], 2.6 * b * s * limbs.shin, 1.9 * b * s * limbs.shin, style.shins ?? pants, pantsMat);
     const f = J[`foot${n}`];
     m.ellipsoid(f[0], f[1], f[2], 2.6 * b * s, 1.7 * s, 3.4 * s, style.shoes ?? [40, 30, 24], style.shoeMat ?? MAT.leather);
   }
@@ -175,8 +179,8 @@ export function body(m, J, style = {}) {
   const bare = style.sleeve === 'none';
   const long = style.sleeve === 'long';
   for (const n of ['L', 'R']) {
-    m.capsule(...J[`shoulder${n}`], ...J[`elbow${n}`], 2.5 * b * s, 2.1 * b * s, bare ? skin : shirt, bare ? skinMat : shirtMat);
-    m.capsule(...J[`elbow${n}`], ...J[`hand${n}`], 2 * b * s, 1.6 * b * s, long ? shirt : skin, long ? shirtMat : skinMat);
+    m.capsule(...J[`shoulder${n}`], ...J[`elbow${n}`], 2.5 * b * s * limbs.upper, 2.1 * b * s * limbs.upper, bare ? skin : shirt, bare ? skinMat : shirtMat);
+    m.capsule(...J[`elbow${n}`], ...J[`hand${n}`], 2 * b * s * limbs.fore, 1.6 * b * s * limbs.fore, long ? shirt : skin, long ? shirtMat : skinMat);
     m.sphere(...J[`hand${n}`], 1.9 * b * s, style.hands ?? skin, skinMat);
   }
   style.held?.(m, J);

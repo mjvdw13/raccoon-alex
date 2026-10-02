@@ -1,6 +1,7 @@
 import { defineMonster } from '../../engine/defs.js';
 
-// A hunched demon in a shredded suit that hurls flaming reply-all emails (Doom's imp).
+// A hunched, spiny demon with a barbed tail that hurls flaming reply-all
+// emails (Doom's imp).
 export default defineMonster({
   id: 'imp',
   name: 'Reply-All Imp',

@@ -81,3 +81,10 @@ test('the staple gun hits what it is pointed at', () => {
   assert.ok(w.player.player.ammo.staples < start, 'ammo was spent');
   assert.ok(intern.dead, 'the intern in front of the player went down');
 });
+
+test('effects (puffs, blood, explosions) play once and disappear', () => {
+  const w = makeWorld(arena, { noMonsters: true });
+  const fx = ['puff', 'blood', 'explosion', 'teleport-fog'].map((id) => w.spawnEffect(id, 4.5, 2.5, 0.5));
+  run(w, mockInput(), 1);
+  for (const e of fx) assert.ok(e.removed, `${e.def.id} is gone`);
+});
