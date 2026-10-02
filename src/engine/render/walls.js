@@ -6,7 +6,7 @@ const MAX_STEPS = 128;
  * Cast one ray per screen column (DDA through the tile grid) and draw the
  * textured wall slice it hits. Doors are thin panels through the middle of
  * their tile that slide open; walls next to a door use the door's jamb
- * texture. Fills view.zbuf with the distance per column for sprite clipping.
+ * texture. Secret doors are flush with the surrounding wall instead. Fills view.zbuf with the distance per column for sprite clipping.
  *
  * @param {import('./view.js').View} view
  * @param {import('../world/tilemap.js').TileMap} map
@@ -81,6 +81,21 @@ export function drawWalls(view, map, textures, fb, fbW, colormaps) {
       const f = flags[i];
       if (f & F_DOOR) {
         const door = doors[doorIndex[i]];
+        if (door.secret) {
+          // Secret doors sit flush with the wall around them and slide sideways.
+          const t = side === 0 ? sdx - ddx : sdy - ddy;
+          let du = door.axis === 'x' ? py + rdy * t - mapY : px + rdx * t - mapX;
+          if (du < door.open) continue;
+          du -= door.open;
+          if (side === 0 ? rdx < 0 : rdy > 0) du = 1 - du;
+          perp = t;
+          tex = door.tex;
+          u = du;
+          lightTile = prevY * mw + prevX;
+          contrast = side === 0 ? 1 : -1;
+          seen[i] = 1;
+          break;
+        }
         let t;
         if (door.axis === 'x') {
           if (rdx === 0) continue;

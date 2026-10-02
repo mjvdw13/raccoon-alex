@@ -49,11 +49,12 @@ export function castRay(map, x, y, dx, dy, maxDist = 64) {
     const f = map.flags[idx];
     if (f & F_DOOR) {
       const door = map.doors[map.doorIndex[idx]];
-      const t = door.axis === 'x' ? (dx === 0 ? -1 : (mapX + 0.5 - x) / dx) : dy === 0 ? -1 : (mapY + 0.5 - y) / dy;
+      // Panels run through the tile centre; secret doors sit on the tile face.
+      const t = door.secret ? enter : door.axis === 'x' ? (dx === 0 ? -1 : (mapX + 0.5 - x) / dx) : dy === 0 ? -1 : (mapY + 0.5 - y) / dy;
       if (t >= 0 && t <= maxDist) {
         const hx = x + dx * t;
         const hy = y + dy * t;
-        if (Math.floor(hx) === mapX && Math.floor(hy) === mapY) {
+        if (door.secret || (Math.floor(hx) === mapX && Math.floor(hy) === mapY)) {
           const u = door.axis === 'x' ? hy - mapY : hx - mapX;
           const open = door.open;
           const gap = door.style === 'split' ? u > 0.5 - open / 2 && u < 0.5 + open / 2 : u < open;

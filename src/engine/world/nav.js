@@ -23,7 +23,7 @@ export class FlowField {
     if (f & F_SOLID) return false;
     if (f & F_DOOR) {
       const d = this.map.doors[this.map.doorIndex[i]];
-      return !d.lock || d.passable;
+      return (!d.lock && !d.secret) || d.passable;
     }
     return true;
   }

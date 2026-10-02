@@ -162,7 +162,9 @@ export function validateContent(reg) {
     (level.triggers ?? []).forEach((t, i) => {
       const where = `trigger #${i + 1}`;
       if (!TRIGGER_EVENTS.includes(t.on)) err(`${owner}: ${where} has unknown event "${t.on}"`);
-      if (t.tag && !map.tags.has(t.tag)) err(`${owner}: ${where} refers to tag "${t.tag}" which no tile has`);
+      if (t.on === 'killed' && t.tag) {
+        if (!built.spawns.some((sp) => sp.tag === t.tag)) err(`${owner}: ${where} waits for monsters tagged "${t.tag}" but none are placed`);
+      } else if (t.tag && !map.tags.has(t.tag)) err(`${owner}: ${where} refers to tag "${t.tag}" which no tile has`);
       if (t.thing && !reg.things.has(t.thing)) err(`${owner}: ${where} refers to unknown thing "${t.thing}"`);
       checkActions(where, t.do);
     });
