@@ -72,7 +72,9 @@ relative, so it works at `https://<user>.github.io/raccoon-alex/`.
    the **/ (root)** folder, then save.
 4. After a minute the site shows up at the address on that page.
 
-The `.nojekyll` file tells Pages to serve the files as they are.
+The `.nojekyll` file tells Pages to serve the files as they are. If you host
+the game anywhere else, update the `og:` link-preview URLs at the top of
+`index.html`, so shared links show the title screen.
 
 ## Run it locally
 
