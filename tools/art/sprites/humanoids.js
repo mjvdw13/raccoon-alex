@@ -66,8 +66,9 @@ function internFrame(pose, { aim = false, fire = false, gore = 0, stains = 0.4 }
       // Sunken, glowing eyes and a slack, bloody mouth.
       mm.paint(hx - 1.7, hy - 0.3, 1.3, 0.9, darken(ZOMBIE, 0.55));
       mm.paint(hx + 1.7, hy - 0.3, 1.3, 0.9, darken(ZOMBIE, 0.55));
-      mm.dot(hx - 2, hy - 0.4, G('red', 1), MAT.glow);
-      mm.dot(hx + 1.4, hy - 0.4, G('red', 1), MAT.glow);
+      const lit = (pose.fall ?? 0) < 1; // the glow goes out once they hit the floor
+      mm.dot(hx - 2, hy - 0.4, lit ? G('red', 1) : C('blood', 0.2), lit ? MAT.glow : MAT.flesh);
+      mm.dot(hx + 1.4, hy - 0.4, lit ? G('red', 1) : C('blood', 0.2), lit ? MAT.glow : MAT.flesh);
       mm.dent(hx, hy + 2.8, 1.8, 0.8, 1.4);
       mm.stroke(hx - 1.5, hy + 2.8, hx + 1.5, hy + 3, 0.9, C('blood', 0.15));
       mm.stroke(hx + 1, hy + 3.2, hx + 1.2, hy + 5, 0.6, C('blood', 0.4));
@@ -185,10 +186,13 @@ function impFrame(pose, { holding = false, gore = 0, mouth = false } = {}) {
       }
       // Brow ridge, glowing eyes, fanged mouth.
       m.ellipsoid(hx, hy - 1.6, hz + 2.6, 3.8, 1.1, 1.6, darken(IMP, 0.1), MAT.flesh);
-      mm.paint(hx - 1.8, hy - 0.2, 1.3, 0.8, G('yellow', 0.75), MAT.glow);
-      mm.paint(hx + 1.8, hy - 0.2, 1.3, 0.8, G('yellow', 0.75), MAT.glow);
-      mm.dot(hx - 1.8, hy - 0.3, G('red', 1), MAT.glow);
-      mm.dot(hx + 1.4, hy - 0.3, G('red', 1), MAT.glow);
+      const lit = (pose.fall ?? 0) < 1;
+      const eye = lit ? G('yellow', 0.75) : C('yellow', 0.2);
+      const mat = lit ? MAT.glow : MAT.flesh;
+      mm.paint(hx - 1.8, hy - 0.2, 1.3, 0.8, eye, mat);
+      mm.paint(hx + 1.8, hy - 0.2, 1.3, 0.8, eye, mat);
+      mm.dot(hx - 1.8, hy - 0.3, lit ? G('red', 1) : C('blood', 0.2), mat);
+      mm.dot(hx + 1.4, hy - 0.3, lit ? G('red', 1) : C('blood', 0.2), mat);
       mm.paint(hx, hy + 2.6, 2.4, mouth ? 1.6 : 0.9, C('gray', 0.06));
       for (const k of [-1.6, 1.2]) mm.dot(hx + k, hy + 2, C('beige', 0.9));
       if (mouth) mm.dot(hx - 0.2, hy + 3.4, C('blood', 0.5));
@@ -256,8 +260,9 @@ function managerFrame(pose, { orb = false, caseOpen = false, noCase = false, gor
         m.capsule(hx + side * 2.6, hy - 3.5, hz, hx + side * 3.8, hy - 7.5, hz - 0.5, 1.2, 0.3, C('beige', 0.55), MAT.bone);
         m.ellipsoid(hx + side * 4, hy + 0.2, hz - 0.8, 1, 2, 1.6, C('gray', 0.3), MAT.hair);
       }
-      mm.paint(hx - 1.8, hy - 0.3, 1.2, 0.6, G('green', 1), MAT.glow);
-      mm.paint(hx + 1.8, hy - 0.3, 1.2, 0.6, G('green', 1), MAT.glow);
+      const lit = (pose.fall ?? 0) < 1;
+      mm.paint(hx - 1.8, hy - 0.3, 1.2, 0.6, lit ? G('green', 1) : C('olive', 0.25), lit ? MAT.glow : MAT.flesh);
+      mm.paint(hx + 1.8, hy - 0.3, 1.2, 0.6, lit ? G('green', 1) : C('olive', 0.25), lit ? MAT.glow : MAT.flesh);
       m.ellipsoid(hx, hy + 2.3, hz + 3.8, 2.3, 0.7, 1, C('gray', 0.18), MAT.hair); // moustache
       mm.paint(hx, hy + 3.4, 1.5, mouth ? 1.2 : 0.5, C('blood', 0.15));
     },

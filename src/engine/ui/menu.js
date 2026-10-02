@@ -31,8 +31,8 @@ export class MenuSystem {
 
   open(menu) {
     const items = typeof menu.items === 'function' ? menu.items() : menu.items;
-    const entry = { menu, items, index: 0 };
-    entry.index = this._firstSelectable(entry);
+    const entry = { menu, items, index: menu.defaultIndex ?? 0 };
+    if (!this._enabled(items[entry.index])) entry.index = this._firstSelectable(entry);
     this.stack.push(entry);
     this.game.audio.play('menu-open');
   }
@@ -177,7 +177,7 @@ export class MenuSystem {
     const menu = top.menu;
     let y = menu.y ?? 24;
     if (menu.title && gold) {
-      gold.draw(s, menu.title, SCREEN_W / 2, y, { align: 'center' });
+      gold.draw(s, menu.title, menu.titleX ?? SCREEN_W / 2, y, { align: 'center' });
       y += 24;
     }
     if (menu.subtitle && small) {

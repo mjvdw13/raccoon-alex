@@ -68,8 +68,10 @@ export function skillMenu(game, episodeId) {
   return {
     id: 'skill',
     title: t(game, 'chooseSkill', 'CHOOSE SKILL LEVEL'),
-    y: 40,
-    x: 52,
+    y: 58,
+    x: 116,
+    titleX: 212,
+    defaultIndex: 2, // the middle skill, like Doom's "Hurt me plenty"
     items: names.map((name, i) => ({
       label: name,
       action: () => {
