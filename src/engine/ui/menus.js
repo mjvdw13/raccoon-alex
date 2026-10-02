@@ -11,7 +11,7 @@ export function mainMenu(game) {
   return {
     id: 'main',
     y: 74,
-    x: 98,
+    x: 128,
     items: () => {
       const items = [
         { label: t(game, 'newGame', 'NEW GAME'), action: () => game.menu.open(game.registry.episodes.size > 1 ? episodeMenu(game) : skillMenu(game, game.registry.firstEpisode()?.id)) },

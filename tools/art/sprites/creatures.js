@@ -15,9 +15,10 @@ const circle = (cx, cy, r, n = 24) => Array.from({ length: n }, (_, k) => [cx + 
 
 /**
  * A demonic twin-bell alarm clock. o: { legs: [liftL, liftR], mouth 0..1, eyes 'angry'|'closed'|'x',
- * shake, spin, crack, caseColor, noLegs }
+ * shake, spin, crack, caseColor, noLegs, unit }
  */
 function clockModel(m, cx, cy, r, o = {}) {
+  const u = o.unit ?? 1; // scales fixed-size details (strokes, teeth) for big renders
   const caseCol = o.caseColor ?? C('blood', 0.45);
   const z = 0;
   const painted = { ...MAT.metal, spec: 0.45, shine: 20, grain: 0.04 };
@@ -47,45 +48,45 @@ function clockModel(m, cx, cy, r, o = {}) {
   m.ellipsoid(cx, cy, z, r, r, r * 0.42, caseCol, painted);
   m.slab(circle(cx, cy, r * 0.83), z + r * 0.42, lighten(caseCol, 0.15), painted, { bevel: r * 0.12, thickness: 1 });
   // Face.
-  m.slab(circle(cx, cy, r * 0.74), z + r * 0.44, C('beige', 0.82), MAT.paper, { bevel: 1, thickness: 0.3 });
+  m.slab(circle(cx, cy, r * 0.74), z + r * 0.44, C('beige', 0.82), MAT.paper, { bevel: u, thickness: 0.3 * u });
   for (let k = 0; k < 12; k++) {
     const a = (k / 12) * Math.PI * 2;
     const rr = r * 0.64;
-    m.paint(cx + Math.sin(a) * rr, cy - Math.cos(a) * rr, k % 3 ? 0.5 : 0.9, k % 3 ? 0.5 : 0.9, C('gray', 0.12));
+    m.paint(cx + Math.sin(a) * rr, cy - Math.cos(a) * rr, (k % 3 ? 0.5 : 0.9) * u, (k % 3 ? 0.5 : 0.9) * u, C('gray', 0.12));
   }
   const spin = o.spin ?? 0;
-  m.stroke(cx, cy, cx + Math.sin(-0.5 + spin) * r * 0.36, cy - Math.cos(-0.5 + spin) * r * 0.36, 1.1, C('gray', 0.08));
-  m.stroke(cx, cy, cx + Math.sin(2.1 + spin * 3) * r * 0.55, cy - Math.cos(2.1 + spin * 3) * r * 0.55, 0.8, C('gray', 0.08));
+  m.stroke(cx, cy, cx + Math.sin(-0.5 + spin) * r * 0.36, cy - Math.cos(-0.5 + spin) * r * 0.36, 1.1 * u, C('gray', 0.08));
+  m.stroke(cx, cy, cx + Math.sin(2.1 + spin * 3) * r * 0.55, cy - Math.cos(2.1 + spin * 3) * r * 0.55, 0.8 * u, C('gray', 0.08));
   // Eyes.
   const ey = cy - r * 0.3;
   for (const side of [-1, 1]) {
     const ex = cx + side * r * 0.3;
-    if (o.eyes === 'closed') m.stroke(ex - r * 0.15, ey, ex + r * 0.15, ey + side * 0.5, 0.9, C('gray', 0.1));
+    if (o.eyes === 'closed') m.stroke(ex - r * 0.15, ey, ex + r * 0.15, ey + side * 0.5 * u, 0.9 * u, C('gray', 0.1));
     else if (o.eyes === 'x') {
-      m.stroke(ex - r * 0.1, ey - r * 0.1, ex + r * 0.1, ey + r * 0.1, 0.8, C('gray', 0.1));
-      m.stroke(ex - r * 0.1, ey + r * 0.1, ex + r * 0.1, ey - r * 0.1, 0.8, C('gray', 0.1));
+      m.stroke(ex - r * 0.1, ey - r * 0.1, ex + r * 0.1, ey + r * 0.1, 0.8 * u, C('gray', 0.1));
+      m.stroke(ex - r * 0.1, ey + r * 0.1, ex + r * 0.1, ey - r * 0.1, 0.8 * u, C('gray', 0.1));
     } else {
       m.dent(ex, ey, r * 0.2, r * 0.15, 1.2);
       m.paint(ex, ey, r * 0.17, r * 0.12, C('blood', 0.15));
       m.paint(ex, ey, r * 0.09, r * 0.08, G('red', 1), MAT.glow);
-      m.stroke(ex - side * r * 0.24, ey - r * 0.2, ex + side * r * 0.1, ey - r * 0.1, 1.1, C('gray', 0.15));
+      m.stroke(ex - side * r * 0.24, ey - r * 0.2, ex + side * r * 0.1, ey - r * 0.1, 1.1 * u, C('gray', 0.15));
     }
   }
   // Toothy mouth carved into the face.
   const mouth = o.mouth ?? 0;
   const my = cy + r * 0.32;
   const mw = r * 0.5;
-  const mh = 1.2 + mouth * r * 0.45;
+  const mh = 1.2 * u + mouth * r * 0.45;
   m.dent(cx, my, mw, mh, 1.6);
   m.paint(cx, my, mw, mh, C('blood', 0.12));
-  for (let x = -mw + 1; x < mw - 0.5; x += 2.2) {
-    m.paintPoly([[cx + x, my - mh + 0.4], [cx + x + 2, my - mh + 0.4], [cx + x + 1, my - mh + 2.6]], C('beige', 0.9));
-    if (mouth > 0.3) m.paintPoly([[cx + x, my + mh - 0.4], [cx + x + 2, my + mh - 0.4], [cx + x + 1, my + mh - 2.6]], C('beige', 0.9));
+  for (let x = -mw + u; x < mw - 0.5 * u; x += 2.2 * u) {
+    m.paintPoly([[cx + x, my - mh + 0.4 * u], [cx + x + 2 * u, my - mh + 0.4 * u], [cx + x + u, my - mh + 2.6 * u]], C('beige', 0.9));
+    if (mouth > 0.3) m.paintPoly([[cx + x, my + mh - 0.4 * u], [cx + x + 2 * u, my + mh - 0.4 * u], [cx + x + u, my + mh - 2.6 * u]], C('beige', 0.9));
   }
   if (o.crack) {
-    m.stroke(cx - r * 0.5, cy - r * 0.6, cx + r * 0.1, cy, 0.6, C('gray', 0.35));
-    m.stroke(cx + r * 0.1, cy, cx - r * 0.1, cy + r * 0.7, 0.6, C('gray', 0.35));
-    m.stroke(cx + r * 0.1, cy, cx + r * 0.6, cy + r * 0.2, 0.6, C('gray', 0.35));
+    m.stroke(cx - r * 0.5, cy - r * 0.6, cx + r * 0.1, cy, 0.6 * u, C('gray', 0.35));
+    m.stroke(cx + r * 0.1, cy, cx - r * 0.1, cy + r * 0.7, 0.6 * u, C('gray', 0.35));
+    m.stroke(cx + r * 0.1, cy, cx + r * 0.6, cy + r * 0.2, 0.6 * u, C('gray', 0.35));
   }
 }
 

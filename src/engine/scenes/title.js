@@ -33,6 +33,8 @@ export class TitleScene {
       s.blit(portrait, pos.x, pos.y);
       s.rect(pos.x - 1, pos.y - 1, portrait.width + 2, portrait.height + 2, g.palette.ramp('gray', 0.02));
     }
+    // Dim the picture behind the menu so the items stay readable.
+    if (g.menu.active) s.shadeRect(0, 0, SCREEN_W, SCREEN_H, g.palette.colormap(12));
     if (!g.menu.active && Math.floor(this.time * 2) % 2 === 0) {
       const small = g.font('small');
       const text = g.registry.strings.pressAnyKey ?? 'PRESS ANY KEY';
