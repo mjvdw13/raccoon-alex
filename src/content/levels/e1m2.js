@@ -31,9 +31,10 @@ id: 'e1m2',
     Q: { type: 'manager', skill: [3, 4, 5] },
   },
   // Coworkers (friendlies), listed by position rather than in the things grid.
+  // They start in the first room, either side of the way in.
   list: [
-    { type: 'gus', x: 28.5, y: 11.5 },
-    { type: 'benny', x: 35.5, y: 21.5 },
+    { type: 'gus', x: 6.5, y: 3.5 },
+    { type: 'benny', x: 6.5, y: 7.5 },
   ],
   tiles: [
     '                                                                ',

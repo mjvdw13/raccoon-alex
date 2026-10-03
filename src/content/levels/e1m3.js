@@ -32,9 +32,10 @@ id: 'e1m3',
     E: { type: 'golem', skill: [3, 4, 5] },
   },
   // Coworkers (friendlies), listed by position rather than in the things grid.
+  // They wait outside the elevator, either side of the way out.
   list: [
-    { type: 'terry', x: 30.5, y: 25.5 },
-    { type: 'dale', x: 36.5, y: 45.5 },
+    { type: 'terry', x: 11.5, y: 10.5 },
+    { type: 'dale', x: 11.5, y: 14.5 },
   ],
   tiles: [
     '            OOOOOOOOOOOOOOOOO                                   ',

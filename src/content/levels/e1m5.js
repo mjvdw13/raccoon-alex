@@ -31,9 +31,10 @@ id: 'e1m5',
     9: { type: 'manager', tag: 'compactor-ambush', skill: [3, 4, 5] },
   },
   // Coworkers (friendlies), listed by position rather than in the things grid.
+  // They start in the first room with Alex, either side of the way out.
   list: [
-    { type: 'gus', x: 43.5, y: 28.5 },
-    { type: 'terry', x: 54.5, y: 35.5 },
+    { type: 'gus', x: 6.5, y: 3.5 },
+    { type: 'terry', x: 6.5, y: 5.5 },
   ],
   tiles: [
     '                                                                    ',

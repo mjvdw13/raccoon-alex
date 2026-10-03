@@ -34,9 +34,10 @@ id: 'e1m4',
     E: { type: 'golem', skill: [3, 4, 5] },
   },
   // Coworkers (friendlies), listed by position rather than in the things grid.
+  // They start in the first room with Alex, either side of the way out.
   list: [
-    { type: 'benny', x: 39.5, y: 18.5 },
-    { type: 'vera', x: 57.5, y: 39.5 },
+    { type: 'benny', x: 3.5, y: 5.5 },
+    { type: 'vera', x: 7.5, y: 4.5 },
   ],
   tiles: [
     '                                                                ',

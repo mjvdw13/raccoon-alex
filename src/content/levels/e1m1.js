@@ -29,10 +29,11 @@ id: 'e1m1',
     9: { type: 'imp', tag: 'closet-imps', skill: [3, 4, 5] },
   },
   // Coworkers (friendlies), listed by position rather than in the things grid.
+  // They wait in the lobby outside the elevator, off to the sides.
   list: [
-    { type: 'dale', x: 12.5, y: 26.5 },
-    { type: 'vera', x: 11.5, y: 9.5 },
-    { type: 'terry', x: 53.5, y: 29.5 },
+    { type: 'dale', x: 9.5, y: 25.5 },
+    { type: 'vera', x: 9.5, y: 31.5 },
+    { type: 'terry', x: 12.5, y: 32.5 },
   ],
   tiles: [
     '                                                               ',
