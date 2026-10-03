@@ -13,8 +13,8 @@ export default [
     id: 'dale',
     name: 'DALE',
     glyph: '1',
-    sheet: S('dale'),
-    scale: 0.5,
+    // Hand-drawn pixel art at 1:1 (tools/art/sprites/people/dale.js).
+    sheet: { src: 'assets/sprites/coworkers/dale.png', frameWidth: 64, frameHeight: 64 },
     height: 0.8,
     wander: 0,
     anims: {
