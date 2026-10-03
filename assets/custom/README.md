@@ -15,7 +15,7 @@ This folder holds the photos behind the game's real faces.
   changing one.
 - Gus, Benny and Dale are hand-drawn pixel art (`tools/art/sprites/people/`),
   so their photos are only references for drawing them. `dale-full.png` is
-  Dale's full-body reference.
+  Dale's full-body reference and `gus-costume.png` shows Gus's costume.
 
 > **Heads up:** everything in this repository is public once it's on GitHub
 > Pages. Check that everyone is in on the joke before you push their photo.

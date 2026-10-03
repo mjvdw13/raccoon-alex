@@ -34,6 +34,8 @@ id: 'e1m1',
     { type: 'dale', x: 9.5, y: 25.5 },
     { type: 'vera', x: 9.5, y: 31.5 },
     { type: 'terry', x: 12.5, y: 32.5 },
+    { type: 'gus', x: 10.5, y: 22.5 },
+    { type: 'benny', x: 13.5, y: 30.5 },
   ],
   tiles: [
     '                                                               ',
