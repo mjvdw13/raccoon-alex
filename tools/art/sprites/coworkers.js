@@ -4,7 +4,7 @@
 // own face, taken from a photo in assets/custom/coworkers/ and mapped onto the
 // head by matching two points (usually the eyes).
 //
-// Gus, Benny and Dale are the exception: they're hand-drawn pixel art (people/), 64x64
+// Gus, Benny, Dale and Terry are the exception: they're hand-drawn pixel art (people/), 64x64
 // frames drawn 1:1. The others will follow.
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,6 +17,7 @@ import { loadPhoto, pointMap, skinTone } from '../lib/photo.js';
 import { gusSheet } from './people/gus.js';
 import { bennySheet } from './people/benny.js';
 import { daleSheet } from './people/dale.js';
+import { terrySheet } from './people/terry.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const photo = (name) => loadPhoto(path.join(root, `assets/custom/coworkers/${name}.png`));
@@ -111,58 +112,6 @@ function vera() {
   );
 }
 
-// ------------------------------------------------------------------ Terry
-// Confused. Scratches his head and wanders around wondering where he is.
-
-function terry() {
-  const face = photo('terry');
-  const skin = C('skin', 0.7);
-  const draw = (pose) => {
-    const m = new Model(W, H, { seed: 704 });
-    const J = joints(pose, { height: 100 });
-    const s = J.s;
-    body(m, J, {
-      skin,
-      shirt: mix(C('blood', 0.28), C('rust', 0.25), 0.4),
-      sleeve: 'short',
-      pants: C('beige', 0.45),
-      shoes: C('gray', 0.2),
-      headShape: { rx: 4.5, ry: 5.4, rz: 4.7 },
-      clothes(mm, j) {
-        // Bright red running vest over the shirt.
-        const [cx, cy] = j.chest;
-        for (const side of [-1, 1]) mm.paintPoly([[cx + side * 1.8 * s, cy - 6 * s], [cx + side * 4.6 * s, cy - 6 * s], [cx + side * 6.2 * s, cy + 5.5 * s], [cx + side * 2.6 * s, cy + 5.5 * s]], C('blood', 0.62));
-      },
-      face(mm, j) {
-        // The photo is a three-quarter view with a green vest behind him: keep only skin.
-        const skinOnly = ([r, g, b]) => (r + g + b < 210 ? 1 : Math.max(0, Math.min(1, (r - g - 4) / 16)));
-        photoFace(mm, j, face, [[[82, 66], [-1.7, -0.3]], [[127, 61], [1.7, -0.3]]], { center: [-0.3, 0.6], radius: [3.9, 5.6], level: 150, keep: skinOnly });
-      },
-    });
-    return m;
-  };
-  const scratch = { reachChest: [3.6, -15.5, 1.6] };
-  const shrugL = { spread: 40, swing: 25, bend: 75 };
-  const shrugR = { spread: 40, swing: 25, bend: 75 };
-  const walk = (k) => {
-    const t = [20, 4, -10, 4][k];
-    const u = [-10, 4, 20, 4][k];
-    return { armL: { spread: 10, swing: [18, 0, -16, 0][k], bend: 20 }, armR: { spread: 10, swing: [-16, 0, 18, 0][k], bend: 20 }, bob: k % 2 ? -1 : 0, headTilt: [0.5, 0, -0.5, 0][k], legL: { thigh: t, knee: t > 10 ? 26 : 8 }, legR: { thigh: u, knee: u > 10 ? 26 : 8 } };
-  };
-  return frames(
-    [
-      { headTilt: -0.8, armL: { spread: 10, bend: 12 }, armR: scratch },
-      { headTilt: 0.8, armL: { spread: 10, bend: 12 }, armR: scratch, bob: -0.5 },
-      walk(0),
-      walk(1),
-      walk(2),
-      walk(3),
-      { bob: -1, armL: shrugL, armR: shrugR }, // shrug
-    ],
-    draw,
-  );
-}
-
 // ------------------------------------------------------------------ speech bubbles
 
 /** Little speech bubbles that pop up when a coworker reacts. */
@@ -196,7 +145,7 @@ export default [
   { name: 'coworker-dale', out: OUT('dale'), draw: daleSheet }, // hand-drawn pixel art (people/dale.js)
   { name: 'coworker-vera', out: OUT('vera'), draw: vera, dither: 'fs' },
   { name: 'coworker-gus', out: OUT('gus'), draw: gusSheet }, // hand-drawn pixel art (people/gus.js)
-  { name: 'coworker-terry', out: OUT('terry'), draw: terry, dither: 'fs' },
+  { name: 'coworker-terry', out: OUT('terry'), draw: terrySheet }, // hand-drawn pixel art (people/terry.js)
   { name: 'coworker-benny', out: OUT('benny'), draw: bennySheet }, // hand-drawn pixel art (people/benny.js)
   { name: 'speech-bubbles', out: 'assets/sprites/fx/bubbles.png', draw: bubbles },
 ];
