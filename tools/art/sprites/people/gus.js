@@ -7,7 +7,7 @@
 // soft painted pixels rather than flat cel bands.
 //
 // Frames: 0-1 idle (on the phone, then talking with his free hand),
-// 2-5 walk, 6 react ("one sec", finger up).
+// 2-5 walk, 6 react ("hold on", palm raised).
 import { C } from '../../lib/pal.js';
 import { part, compose, paint } from '../../lib/pixels.js';
 import { sheet } from '../../lib/sprite.js';
@@ -208,14 +208,15 @@ const armTalk = P([
   '...uuuuuu....',
 ]);
 
-// "One sec": hand raised, index finger up. Origin (9, 19).
+// "Hold on": hand raised, palm out, fingers spread. (A single raised
+// finger reads as the middle finger at this size.) Origin (9, 19).
 const armFinger = P([
-  '...S........',
-  '...s........',
-  '..SSs.......',
-  '..Ssst......',
+  '..S.S.......',
+  '.SsSsS......',
+  '.SsSsS......',
+  'SSsssst.....',
+  '.Ssssst.....',
   '..sstt......',
-  '...Sst......',
   '...Sst......',
   '...Sstu.....',
   '....Sst.....',
@@ -251,6 +252,6 @@ export function gusSheet() {
     frame({ arm: armDown(), armX: 14, armY: 28 }, 4),
     frame({ arm: armDown(-1), armX: 14, armY: 28, lift: 2, bob: -1 }, 5),
     frame({ arm: armDown(), armX: 14, armY: 28 }, 6),
-    frame({ arm: armFinger, armX: 9, armY: 19, head: headTalk }, 7), // one sec
+    frame({ arm: armFinger, armX: 9, armY: 19, head: headTalk }, 7), // hold on
   ]);
 }
