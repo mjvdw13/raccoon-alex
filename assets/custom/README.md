@@ -9,13 +9,12 @@ This folder holds the photos behind the game's real faces.
   into the 80s palette, and paints on darker eye bags, a raccoon mask, bruises
   and blood as health drops. Turning left or right and the god-mode and dead
   faces come from the same photo.
-- `coworkers/` holds face crops of Dale, Vera, Gus, Terry and Benny.
-  `tools/art/sprites/coworkers.js` maps Vera's onto Vera's sprite by
-  lining up two points (usually the eyes). Run `npm run art` after changing it.
-- Gus, Benny, Dale and Terry are hand-drawn pixel art
-  (`tools/art/sprites/people/`), so their photos are only references for
-  drawing them. `dale-full.png` is Dale's full-body reference,
-  `gus-costume.png` shows Gus's costume and `terry-photo.png` is Terry.
+- `coworkers/` holds photos of Dale, Vera, Gus, Terry and Benny. Their
+  sprites are hand-drawn pixel art (`tools/art/sprites/people/`), so the
+  photos are only references for drawing them: `dale-full.png` is Dale's
+  full-body reference, `gus-costume.png` shows Gus's costume, and
+  `terry-photo.png` and `vera-photo.png` are Terry and Vera. The smaller
+  face crops are from the earlier, photo-mapped sprites.
 
 > **Heads up:** everything in this repository is public once it's on GitHub
 > Pages. Check that everyone is in on the joke before you push their photo.

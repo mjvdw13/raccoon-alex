@@ -3,9 +3,9 @@ import { defineNpc } from '../engine/defs.js';
 // Alex's coworkers, also stuck in the office at 3 AM. They're friendlies: they
 // can't be hurt, monsters leave them alone, and they wander around their spot.
 // Bump into one (or press Use on them) and they react. Their faces come from
-// the photos in assets/custom/coworkers/ (see tools/art/sprites/coworkers.js).
-// Sprites are 128x128 frames drawn at half scale, so the faces stay sharp.
-const S = (name) => ({ src: `assets/sprites/coworkers/${name}.png`, frameWidth: 128, frameHeight: 128 });
+// the photos in assets/custom/coworkers/. Sprites are hand-drawn pixel art
+// (tools/art/sprites/people/), 64x64 frames shown 1:1.
+const S = (name) => ({ src: `assets/sprites/coworkers/${name}.png`, frameWidth: 64, frameHeight: 64 });
 
 export default [
   // Exasperated. Stands in one spot, sighing at the ceiling.
@@ -13,8 +13,7 @@ export default [
     id: 'dale',
     name: 'DALE',
     glyph: '1',
-    // Hand-drawn pixel art at 1:1 (tools/art/sprites/people/dale.js).
-    sheet: { src: 'assets/sprites/coworkers/dale.png', frameWidth: 64, frameHeight: 64 },
+    sheet: S('dale'),
     height: 0.8,
     wander: 0,
     anims: {
@@ -32,7 +31,6 @@ export default [
     name: 'VERA',
     glyph: '2',
     sheet: S('vera'),
-    scale: 0.5,
     height: 0.78,
     wander: 3,
     speed: 0.8,
@@ -52,8 +50,7 @@ export default [
     id: 'gus',
     name: 'GUS',
     glyph: '7',
-    // Hand-drawn pixel art at 1:1 (tools/art/sprites/people/gus.js).
-    sheet: { src: 'assets/sprites/coworkers/gus.png', frameWidth: 64, frameHeight: 64 },
+    sheet: S('gus'),
     height: 0.8,
     wander: 2,
     speed: 0.9,
@@ -73,8 +70,7 @@ export default [
     id: 'terry',
     name: 'TERRY',
     glyph: '8',
-    // Hand-drawn pixel art at 1:1 (tools/art/sprites/people/terry.js).
-    sheet: { src: 'assets/sprites/coworkers/terry.png', frameWidth: 64, frameHeight: 64 },
+    sheet: S('terry'),
     height: 0.8,
     wander: 4,
     speed: 0.9,
@@ -94,8 +90,7 @@ export default [
     id: 'benny',
     name: 'BENNY',
     glyph: '0',
-    // Hand-drawn pixel art at 1:1 (tools/art/sprites/people/benny.js).
-    sheet: { src: 'assets/sprites/coworkers/benny.png', frameWidth: 64, frameHeight: 64 },
+    sheet: S('benny'),
     height: 0.55,
     radius: 0.24,
     wander: 3,

@@ -128,8 +128,7 @@ defineNpc({
   id: 'vera',
   name: 'VERA',
   glyph: '2',
-  sheet: { src: 'assets/sprites/coworkers/vera.png', frameWidth: 128, frameHeight: 128 },
-  scale: 0.5,               // 128px frames drawn at half size: sharper faces
+  sheet: { src: 'assets/sprites/coworkers/vera.png', frameWidth: 64, frameHeight: 64 },
   wander: 3,                // tiles from the spot; 0 = stays put
   speed: 0.8,
   idleTime: [3, 6],         // seconds between strolls
@@ -142,10 +141,16 @@ defineNpc({
 
 Animation frame events like `events: { 2: 'sound:npc-sigh' }` play a sound
 (Dale sighs on his idle loop). `hooks.onReact(world, self)` and
-`hooks.onThink(world, self, dt)` add custom behaviour. The sprites come from
-`tools/art/sprites/coworkers.js`. It maps each face photo in
-`assets/custom/coworkers/` onto a rig-built body by matching two points
-(usually the eyes).
+`hooks.onThink(world, self, dt)` add custom behaviour.
+
+The sprites are hand-drawn pixel art, one file per coworker in
+`tools/art/sprites/people/`. Each character is drawn as text grids, one
+character per pixel and a legend of palette colours, split into parts (head,
+body, arms, legs) so poses can reuse them. `compose()` stamps the parts onto a
+frame and `paint()` finishes it: dithered blends between shades, a light
+fabric grain, soft edges between materials, and a shadow-side outline instead
+of a black one (all in `tools/art/lib/pixels.js`). Edit a grid, then run
+`npm run art -- --only coworker-<id>`.
 
 ## Weapons
 
