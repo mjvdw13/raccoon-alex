@@ -48,16 +48,14 @@ Doors marked with a blue, yellow or red badge need that badge.
 `idkfa` and `espresso` (everything), `idclip` (walk through walls), `iddt`
 (reveal the map), `idclev##` (warp, for example `idclev13` for E1M3).
 
-## Alex's real face
+## Alex's face
 
 The status-bar face, the ID badge on the title screen and the Employee of the
-Month poster all use Alex's real photo. The game shrinks it, crunches it into
-the 80s palette, and paints on darker eye bags, a raccoon mask, bruises and
-blood as health drops. His close-up (`assets/custom/alex-closeup.png`) is
-mapped onto a modelled head and shoulders by `tools/art/ui/face.js`, which
-writes `assets/custom/alex.png`.
+Month poster are hand-drawn from Alex's photo (`assets/custom/alex-photo.png`)
+by `tools/art/ui/face.js`. As his health drops, the bags under his eyes grow,
+a raccoon mask closes over them, and bruises and blood appear.
 
-To use a different photo:
+The game can also build the face from a photo instead. To use one:
 
 1. Put it in `assets/custom/` (for example `assets/custom/alex.jpg`). A
    roughly 4:5 head-and-shoulders shot looking at the camera works best.

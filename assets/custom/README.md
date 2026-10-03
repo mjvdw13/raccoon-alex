@@ -2,13 +2,13 @@
 
 This folder holds the photos behind the game's real faces.
 
-- `alex-closeup.png` is Alex's face. `tools/art/ui/face.js` maps it onto a
-  modelled head and shoulders and writes `alex.png`. `src/content/hero.js`
-  uses that for the status bar and the title ID badge, and the Employee of the
-  Month poster texture uses it too. The game crops and shrinks it, crunches it
-  into the 80s palette, and paints on darker eye bags, a raccoon mask, bruises
-  and blood as health drops. Turning left or right and the god-mode and dead
-  faces come from the same photo.
+- `alex-photo.png` is Alex. His status-bar face, title ID badge and
+  Employee of the Month poster are hand-drawn from it in
+  `tools/art/ui/face.js`. (`alex-closeup.png` is an older close-up.) The game
+  can still build his face from a photo at runtime instead: it crops and
+  shrinks it, crunches it into the 80s palette, and paints on darker eye bags,
+  a raccoon mask, bruises and blood as health drops. Turning left or right and
+  the god-mode and dead faces come from the same photo.
 - `coworkers/` holds photos of Dale, Vera, Gus, Terry and Benny. Their
   sprites are hand-drawn pixel art (`tools/art/sprites/people/`), so the
   photos are only references for drawing them: `dale-full.png` is Dale's

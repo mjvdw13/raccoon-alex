@@ -1,14 +1,11 @@
 // Server room and elevator textures (some animated).
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import {
   texture, noiseFill, mottle, speckle, stain, scratches, grimeGradient, bevel, rivet, tinyText,
   C, darken, hash2, PixelCanvas,
 } from '../lib/tex.js';
 import { G } from '../lib/pal.js';
-import { loadPhoto, crop, resize } from '../lib/photo.js';
+import { faceFrame } from '../ui/face.js';
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const T = (name) => `assets/textures/${name}.png`;
 
 function strip(frames) {
@@ -203,15 +200,11 @@ function posterAlex() {
   bevel(c, 15, 3, 34, 52, C('yellow', 0.45), { depth: 2 });
   c.rect(18, 6, 28, 46, C('navy', 0.55));
   tinyText(c, 'EMPLOYEE', 17, 7, C('yellow', 0.9));
-  // Alex's photo portrait (made by ui/face.js from his photo), minus the collar.
-  const photo = resize(crop(loadPhoto(path.join(root, 'assets/custom/alex.png')), 24, 30, 168, 182), 24, 26);
-  const face = new PixelCanvas(24, 26);
-  for (let i = 0; i < 24 * 26; i++) {
-    // A little extra contrast for the small size.
-    const rgb = [...photo.data.subarray(i * 3, i * 3 + 3)];
-    face.set(i % 24, Math.floor(i / 24), rgb.map((v) => Math.max(0, Math.min(255, Math.round((v - 128) * 1.2 + 128)))));
-  }
-  c.blit(face, 20, 13);
+  // Alex's hand-drawn face (ui/face.js), well rested for once, minus the collar.
+  const face = faceFrame({ tier: 0 });
+  const bust = new PixelCanvas(24, 26);
+  bust.blit(face, 0, 0);
+  c.blit(bust, 20, 13);
   tinyText(c, 'OF THE', 20, 39, C('yellow', 0.8));
   tinyText(c, 'MONTH', 22, 45, C('yellow', 0.8));
   c.rect(0, 56, 64, 8, C('gray', 0.14));

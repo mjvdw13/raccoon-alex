@@ -1,322 +1,288 @@
 // Alex's status-bar face (Doom "mugshot" layout) and the big title portrait,
-// sculpted with the clay-model renderer for a shaded, digitized look.
+// hand-drawn from his photo (assets/custom/alex-photo.png): a round, tired
+// face, heavy brows, deep-set eyes with dark bags, a broad nose, a thin
+// moustache and a downturned mouth, in a white shirt and a loosened red tie.
+//
+// The head itself is laid out by a few shape rules (an oval lit from the
+// upper left, ears, neck, collar and tie, hair with a fringe), and every
+// feature is a small hand-drawn grid on top: eyes, brows, nose, mouth, bags,
+// the raccoon mask, bruises and blood. paint() then softens the shading.
 //
 // Sheet layout (24x30 frames): five rows of health tiers (healthy -> wrecked),
 // each with 8 frames: [look ahead, look left, look right, turn right, turn left,
 // ouch, evil grin, rampage]; then a final row: [well rested (god mode), dead].
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { PixelCanvas, mix, darken, lighten } from '../lib/canvas.js';
+import { PixelCanvas } from '../lib/canvas.js';
 import { C, G } from '../lib/pal.js';
-import { Model, MAT } from '../lib/model.js';
-import { loadPhoto, pointMap } from '../lib/photo.js';
-
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+import { part, stamp, paint } from '../lib/pixels.js';
 
 export const FACE_W = 24;
 export const FACE_H = 30;
 
-const SKIN = C('skin', 0.78);
-const HAIR = C('rust', 0.15);
-const BAGS = mix(C('purple', 0.18), C('blood', 0.2), 0.3);
-const MASK = C('gray', 0.07);
+const SKIN = [0.88, 0.79, 0.7, 0.61, 0.52, 0.43].map((t) => C('skin', t));
+const HAIR = [0.26, 0.18, 0.12, 0.07].map((t) => C('rust', t));
+const SHIRT = [0.97, 0.88, 0.76, 0.62].map((t) => C('beige', t));
+const TIE = [C('blood', 0.55), C('blood', 0.42), C('blood', 0.3)];
+
+const L = {
+  V: C('flesh', 0.28), // lids, creases, mouth line
+  e: C('beige', 0.9), // eye whites
+  E: C('flesh', 0.74), // bloodshot
+  p: C('rust', 0.1), // pupils
+  P: C('blood', 0.45), // rampage pupils
+  g: C('skin', 0.46), // bags
+  G: C('rust', 0.3),
+  h: C('concrete', 0.1), // brows
+  k: C('gray', 0.07), // raccoon mask
+  f: C('gray', 0.8), // pale fur above the mask
+  w: C('beige', 0.95), // teeth
+  r: C('blood', 0.15), // open mouth
+  B: C('rust', 0.3), // moustache
+  l: C('blood', 0.5), // blood
+  v: C('purple', 0.4), // bruise
+  y: G('yellow', 1), // god-mode glow
+  Y: G('yellow', 0.4),
+  d: C('rust', 0.07), // hair
+  D: C('rust', 0.18),
+  S: SKIN[0],
+  s: SKIN[1],
+  t: SKIN[2],
+  u: SKIN[3],
+  U: SKIN[4],
+};
+const P = (rows) => part(rows, L);
+
+// ------------------------------------------------------------------ head
+
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const LIGHT = (() => {
+  const l = [-0.45, -0.5, 0.74];
+  const n = Math.hypot(...l);
+  return l.map((v) => v / n);
+})();
+/** Light on an ellipsoid at (u, v): 0 (dark) .. 1 (lit), or -1 outside. */
+function lit(u, v, cx, cy, rx, ry) {
+  const nx = (u - cx) / rx;
+  const ny = (v - cy) / ry;
+  const r2 = nx * nx + ny * ny;
+  if (r2 > 1) return -1;
+  const nz = Math.sqrt(1 - r2);
+  return clamp(0.3 + 0.75 * (nx * LIGHT[0] + ny * LIGHT[1] + nz * LIGHT[2]), 0, 1);
+}
+const pick = (ramp, light, shift = 0) => ramp[clamp(Math.round((1 - light) * (ramp.length - 1)) + shift, 0, ramp.length - 1)];
+const hash = (x, y) => {
+  const h = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+  return h - Math.floor(h);
+};
 
 /**
- * Model one face. k scales everything (1 = 24x30 status bar, 3 = title portrait).
- * o: { tier 0..4, look -1|0|1, turn -1|0|1, expr 'neutral'|'ouch'|'grin'|'rampage'|'god'|'dead', damage? }
+ * The bare head at scale k (1 = 24x30, 1.5 = 36x45), laid out in 24x30 units:
+ * shoulders and collar, neck, ears, the face oval, stubble, hair.
  */
-export function faceModel(o = {}, k = 1) {
+function head(k, { turn = 0, tier = 0, pale = false } = {}) {
+  const w = Math.round(FACE_W * k);
+  const h = Math.round(FACE_H * k);
+  const c = new PixelCanvas(w, h);
+  const cx = 12 + turn * 0.5;
+  const skin = pale ? SKIN.map((col) => [...col].map((v, i) => (i === 2 ? v + 6 : v - 8))) : SKIN;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const u = (x + 0.5) / k;
+      const v = (y + 0.5) / k;
+      const du = Math.abs(u - 12);
+      let col = null;
+      // Shirt: shoulders sloping out, a V at the collar with the tie in it.
+      if (v > 24.6 + du * 0.18) {
+        const tie = v > 26 && du < 0.9 + (v - 26) * 0.3;
+        const open = du < (v - 24.2) * 0.75;
+        if (tie) col = TIE[u < 12 ? 0 : v > 28.5 ? 2 : 1];
+        else if (open) col = skin[4];
+        else col = SHIRT[clamp(Math.floor((u + (v - 25) * 1.5) / 7), 0, 3)];
+      }
+      // Neck, in the shadow of his jaw.
+      if (!col && du < 3.4 && v > 19 && v < 27) col = skin[v < 23 ? 5 : u < 12 ? 3 : 4];
+      // Ears.
+      for (const ex of [3.8 + turn * 0.7, 20.2 + turn * 0.7]) {
+        const e = lit(u, v, ex, 14.6, 1.5, 2.5);
+        if (e >= 0) col = pick(skin, e, 1);
+      }
+      // The face: a full, round oval that narrows a little to the jaw.
+      const taper = v > 15 ? 1 - 0.28 * ((v - 15) / 8.8) ** 2 : 1;
+      const f = lit(u, v, cx, 13.6, 8 * taper, 10.3);
+      if (f >= 0) {
+        col = pick(skin, f);
+        // Stubble on his jaw and upper lip: a darker grain, worse each tier.
+        const jaw = v > 18.6 && Math.abs(u - cx) < 7 && !(Math.abs(u - cx) < 2.4 && v < 20);
+        if (jaw && ((x + y) & 1) === 0 && hash(x, y) < 0.45 + tier * 0.1) col = pick(skin, f, 1);
+      }
+      // Hair: a cap down to the brow, sideburns, a fringe of strands.
+      // Short and messy: the hairline recedes at the temples, comes down
+      // to just above his ears at the sides, and a few strands fall forward.
+      const hl = lit(u, v, cx, 12.2, 8.8, 10.9);
+      const side = Math.abs(u - cx);
+      const hairline = side > 6.4 ? 11.2 : 7.6 + (side > 3.2 ? 0.5 : 0) - 0.4 * Math.cos(u * 2.1);
+      const fringe = v < 9.6 && [8.2, 11.3, 14.6].some((s) => Math.abs(u - (s + turn * 0.5)) < 0.45 + 0.3 / k);
+      if (hl >= 0 && (v < hairline || fringe)) col = pick(HAIR, hl);
+      if (col) c.set(x, y, col);
+    }
+  }
+  return c;
+}
+
+// ------------------------------------------------------------------ features
+// Feature grids for the 24x30 face (positions are the grid's top-left).
+
+const SMALL = {
+  tufts: P([
+    '.......d..D..d.d........',
+    '......dd.dDddddd.d......',
+    '.....ddddDDdddddddd.....',
+  ]),
+  wild: P([
+    '...d..........D....d....',
+    '....d...d...........d...',
+  ]),
+  // Eyes: a heavy lid over a sliver of white. Pupil left / centre / right.
+  eye: {
+    L: { '-1': ['VVVV', 'Vpee'], 0: ['VVVV', 'Vepe'], 1: ['VVVV', 'Veep'] },
+    R: { '-1': ['VVVV', 'peeV'], 0: ['VVVV', 'epeV'], 1: ['VVVV', 'eepV'] },
+  },
+  eyeOuch: { L: ['.VV.', 'Vepe', '.VV.'], R: ['.VV.', 'epeV', '.VV.'] },
+  eyeGod: { L: ['.VV.', 'VyYy'], R: ['.VV.', 'yYyV'] },
+  eyeShut: ['....', 'VVVV'],
+  // Bags under the eyes, growing each tier.
+  bags: [['ugGu'], ['gGGg'], ['gGGg', 'uggu'], ['gGGg', 'uggu'], ['GGGG', 'gGGg']],
+  // The raccoon mask (tiers 3-4): pale fur, then a black band over both eyes.
+  mask: [
+    P(['....ffffffffffffffff....', '...kkkkkkkkkkkkkkkkkk...', '...kkkkkkkkkkkkkkkkkk...', '....kkkkkkkk.kkkkkkk....', '.....kkkk......kkkk.....']),
+    P(['...fffffffffffffffffff..', '..kkkkkkkkkkkkkkkkkkkk..', '..kkkkkkkkkkkkkkkkkkkk..', '..kkkkkkkkkkkkkkkkkkkk..', '...kkkkkkk....kkkkkkk...', '....kkkk........kkkk....']),
+  ],
+  brows: {
+    tired: { L: ['..hhh', 'hh...'], R: ['hhh..', '...hh'] },
+    worried: { L: ['...hh', 'hhh..'], R: ['hh...', '..hhh'] },
+    angry: { L: ['hhh..', '...hh'], R: ['..hhh', 'hh...'] },
+    raised: { L: ['.hhh.', 'h...h'], R: ['.hhh.', 'h...h'] },
+  },
+  nose: P(['.St', '.St', '.Su', 'SsU', 'uVu']),
+  moustache: P(['BBBBBB']),
+  mouth: {
+    neutral: ['uVVVVu', 'V....V'],
+    ouch: ['.VrrV.', '.VrrV.'],
+    grin: ['VwwwwV', '.VVVV.'],
+    god: ['VwwwyV', '.VVVV.'],
+    rampage: ['wVwVwV', 'VVVVVV'],
+    dead: ['.VrrV.', '.rrrr.'],
+  },
+  bruise: P(['vv', 'vv']),
+  zz: P(['yyy', '.y.', 'yyy']),
+};
+
+/** One status-bar frame. o: { tier 0..4, look -1|0|1, turn -1|0|1, expr }. */
+export function faceFrame(o = {}) {
   const tier = o.tier ?? 0;
   const turn = o.turn ?? 0;
   const look = o.look ?? 0;
   const expr = o.expr ?? 'neutral';
   const god = expr === 'god';
   const dead = expr === 'dead';
-  const hurt = o.damage !== false && !god; // bruises and blood (off for the title portrait)
-  const m = new Model(Math.round(FACE_W * k), Math.round(FACE_H * k), { seed: 401 + tier });
-  const P = (v) => v * k;
-  const fx = (x) => P(x + turn * 1.6); // facial features shift when the head turns
-  const skin = dead ? mix(SKIN, C('gray', 0.5), 0.45) : SKIN;
-
-  // Shirt collar, loosened tie, neck.
-  m.slab([[P(1), P(30)], [P(5), P(25)], [P(12), P(27)], [P(19), P(25)], [P(23), P(30)]], P(2), C('beige', 0.8), MAT.cloth, { bevel: P(2), thickness: P(1) });
-  m.slab([[P(10.5), P(26.5)], [P(13.5), P(26.5)], [P(14.5), P(30)], [P(9.5), P(30)]], P(4), C('blood', 0.45), MAT.cloth, { bevel: P(0.8) });
-  m.capsule(P(12), P(21), P(1), P(12), P(26), P(1), P(3.6), P(3.8), darken(skin, 0.1), MAT.skin);
-
-  // Head, jaw, cheeks, ears.
-  m.ellipsoid(P(12 + turn * 0.4), P(14), P(2), P(8.2), P(10.4), P(8), skin, MAT.skin);
-  m.ellipsoid(fx(12), P(20), P(3.5), P(6.4), P(4.4), P(6.2), skin, MAT.skin);
-  m.ellipsoid(fx(7.5), P(16.5), P(6.5), P(2.6), P(2.2), P(3), skin, MAT.skin);
-  m.ellipsoid(fx(16.5), P(16.5), P(6.5), P(2.6), P(2.2), P(3), skin, MAT.skin);
-  m.ellipsoid(P(3.6 + turn * 0.6), P(14.5), P(0), P(1.6), P(2.6), P(1.8), darken(skin, 0.05), MAT.skin);
-  m.ellipsoid(P(20.4 + turn * 0.6), P(14.5), P(0), P(1.6), P(2.6), P(1.8), darken(skin, 0.05), MAT.skin);
-  // Brow ridge and nose.
-  m.ellipsoid(fx(12), P(10.2), P(7.5), P(6.2), P(1.6), P(2.6), skin, MAT.skin);
-  m.capsule(fx(12), P(11.5), P(9), fx(12), P(16.5), P(10.5), P(1.1), P(1.5), skin, MAT.skin);
-  m.sphere(fx(12), P(17), P(10.4), P(1.5), lighten(skin, 0.02), MAT.skin);
-
-  // Stubble: darker grain on the jaw (worse with each tier).
-  const stubble = 0.06 + tier * 0.035;
-  m.tint((x, y, c) => {
-    const ux = x / k;
-    const uy = y / k;
-    if (uy < 18.5 || uy > 25 || Math.abs(ux - fx(12) / k) > 7.5) return undefined;
-    if (Math.abs(ux - fx(12) / k) < 2.2 && uy < 21) return undefined;
-    const h = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
-    return h - Math.floor(h) < 0.5 ? mix(c, C('rust', 0.2), stubble * 2.2) : undefined;
-  });
-
-  // Eyes.
-  const eyeY = P(12.6);
-  const eyes = [fx(8.6), fx(15.4)];
+  const hurt = !god;
   const masked = tier >= 3 && !god && !dead;
-  for (const ex of eyes) {
-    m.dent(ex, eyeY, P(2.4), P(1.6), 1.3);
-    // Puffy, bruised bags under the eyes: the man's defining feature.
-    if (!god) {
-      const size = 1 + tier * 0.18;
-      m.ellipsoid(ex, eyeY + P(2.3), P(7.6), P(2.5) * size, P(1.3) * size, P(1.4), skin, MAT.skin);
-      m.paint(ex, eyeY + P(2.2), P(2.4) * size, P(1.25) * size, mix(skin, BAGS, Math.min(0.92, 0.55 + tier * 0.1)));
-      m.paint(ex, eyeY + P(1.5), P(2) * size, P(0.5), mix(skin, BAGS, 0.9));
-    }
+  const c = head(1, { turn, tier, pale: dead });
+  const at = (p, x, y) => stamp(c, p, x + turn, y);
+  at(SMALL.tufts, 0, 0);
+  if (tier >= 2 && !god) at(SMALL.wild, 0, 0);
+
+  // Eyes, bags and the mask.
+  if (!god && !dead) SMALL.bags[tier].forEach((row, j) => [6, 14].forEach((x) => at(P([row]), x, 14 + j)));
+  if (masked) at(SMALL.mask[tier - 3], 0, tier === 3 ? 10 : 9);
+  const eyeL = dead ? SMALL.eyeShut : god ? SMALL.eyeGod.L : expr === 'ouch' ? SMALL.eyeOuch.L : SMALL.eye.L[look + turn > 0 ? 1 : look + turn < 0 ? -1 : 0];
+  const eyeR = dead ? SMALL.eyeShut : god ? SMALL.eyeGod.R : expr === 'ouch' ? SMALL.eyeOuch.R : SMALL.eye.R[look + turn > 0 ? 1 : look + turn < 0 ? -1 : 0];
+  const recolour = (rows) => rows.map((r) => (expr === 'rampage' ? r.replace(/p/g, 'P') : r));
+  const bloodshot = (rows, side) => (tier >= 1 && !god && !dead ? rows.map((r, j) => (j === rows.length - 1 ? (side < 0 ? r.replace(/e$/, 'E') : r.replace(/^e/, 'E')) : r)) : rows);
+  const ey = expr === 'ouch' ? 11 : 12;
+  at(P(bloodshot(recolour(eyeL), -1)), 6, ey);
+  at(P(bloodshot(recolour(eyeR), 1)), 14, ey);
+
+  // Brows.
+  const brow = god ? 'raised' : expr === 'ouch' ? 'worried' : expr === 'grin' || expr === 'rampage' ? 'angry' : 'tired';
+  const by = god || expr === 'ouch' ? 9 : 10;
+  at(P(SMALL.brows[brow].L), 5, by - (masked ? 1 : 0));
+  at(P(SMALL.brows[brow].R), 14, by - (masked ? 1 : 0));
+
+  // Nose, moustache, mouth.
+  at(SMALL.nose, 11, 14);
+  at(SMALL.moustache, 9, 19);
+  at(P(SMALL.mouth[dead ? 'dead' : expr in SMALL.mouth ? expr : 'neutral']), 9, 20);
+
+  // Damage: a bruise, then blood from the forehead and the lip.
+  if (hurt && tier >= 2) at(SMALL.bruise, 16, 16);
+  if (hurt && tier >= 3) {
+    at(P(['l..', 'l..', '.l.', '.l.', '.l.', '..l']), 15, 4);
+    at(P(['l', 'l']), 8, 21);
   }
-  if (masked) {
-    // Full raccoon mask: black band over the eyes with pale fur above.
-    const top = eyeY - P(tier >= 4 ? 2.6 : 2.2);
-    const bottom = eyeY + P(tier >= 4 ? 4.2 : 3.4);
-    m.paintPoly([[fx(2.5), top + P(1)], [fx(21.5), top + P(1)], [fx(20), bottom], [fx(13.5), bottom - P(1)], [fx(12), bottom + P(0.5)], [fx(10.5), bottom - P(1)], [fx(4), bottom]], MASK);
-    m.paintPoly([[fx(4), top - P(1.2)], [fx(20), top - P(1.2)], [fx(21), top + P(0.6)], [fx(3), top + P(0.6)]], C('gray', 0.75));
+  if (hurt && tier >= 4) {
+    at(P(['l.', 'l.', 'l.', 'l.', '.l']), 8, 3);
+    at(P(['l', 'l']), 14, 22);
   }
-  for (const ex of eyes) {
-    if (dead) {
-      m.stroke(ex - P(1.6), eyeY + P(0.3), ex + P(1.6), eyeY + P(0.3), P(0.8), darken(skin, 0.55));
-      continue;
-    }
-    const ouch = expr === 'ouch';
-    const lid = tier >= 4 ? P(0.5) : 0;
-    const white = god ? G('yellow', 1) : masked ? C('gray', 0.92) : C('beige', 0.9);
-    m.paint(ex, eyeY + lid * 0.5, P(2.1), P(ouch ? 1.5 : 1.15) - lid * 0.5, white, god ? MAT.glow : MAT.eye);
-    if (tier >= 1 && !god) m.paint(ex + (look > 0 ? -P(1.3) : P(1.3)), eyeY + P(0.2), P(0.45), P(0.45), C('blood', 0.65));
-    const px = ex + P(look * 1) + P(turn * 0.6);
-    const pupil = god ? G('yellow', 0.4) : expr === 'rampage' ? C('blood', 0.4) : C('rust', 0.12);
-    m.paint(px, eyeY + lid * 0.5, P(0.85), P(0.85), pupil, god ? MAT.glow : MAT.eye);
-    if (!god) m.paint(px - P(0.3), eyeY - P(0.3), P(0.3), P(0.3), C('beige', 0.95), MAT.eye); // catchlight
-    if (tier >= 2 && !ouch) m.paint(ex, eyeY - P(0.9), P(2), P(0.45), mix(skin, BAGS, 0.5)); // heavy lids
-  }
-  // Eyebrows.
-  eyes.forEach((ex, i) => {
-    const out = i === 0 ? -1 : 1;
-    let yo = P(10.4);
-    let yi = P(10.4);
-    if (expr === 'ouch') {
-      yo = P(9.4);
-      yi = P(8.8);
-    } else if (expr === 'rampage' || expr === 'grin') {
-      yi = P(11.2);
-      yo = P(9.6);
-    } else if (!god) {
-      yo = P(11); // droopy, exhausted
-    }
-    m.stroke(ex + out * P(2.4), yo, ex - out * P(1.8), yi, P(0.9), masked ? C('gray', 0.2) : HAIR);
+  if (dead) stamp(c, SMALL.zz, 19, 1);
+  return paint(c, {
+    blend: ['skin', 'rust', 'beige', 'blood'],
+    crisp: ['gray', 'concrete', 'purple', 'flesh', 'glow-yellow'],
+    grain: 0.02,
+    seed: 401 + tier,
   });
-
-  // Mouth.
-  const mx = fx(12);
-  const my = P(21);
-  switch (expr) {
-    case 'ouch':
-      m.dent(mx, my + P(0.4), P(2), P(1.8), 1.6);
-      m.paint(mx, my + P(0.4), P(1.7), P(1.6), C('blood', 0.15));
-      break;
-    case 'grin':
-    case 'god':
-      m.dent(mx, my, P(3.4), P(1.1), 1.2);
-      m.paint(mx, my, P(3.3), P(1), C('blood', 0.2));
-      m.paint(mx, my - P(0.3), P(3), P(0.55), C('beige', 0.92), MAT.glass);
-      if (god) m.dot(mx + P(1.5), my - P(0.4), G('yellow', 1), MAT.glow);
-      break;
-    case 'rampage':
-      m.paint(mx, my, P(3.2), P(1), C('beige', 0.88), MAT.glass);
-      for (let x = -2; x <= 2; x += 2) m.paint(mx + P(x), my, P(0.25), P(1), C('gray', 0.35));
-      break;
-    case 'dead':
-      m.dent(mx, my + P(0.5), P(1.6), P(1.2), 1.4);
-      m.paint(mx, my + P(0.5), P(1.4), P(1), C('blood', 0.15));
-      break;
-    default:
-      m.stroke(mx - P(2.2), my + P(0.4), mx + P(2.2), my + P(0.4), P(0.7), darken(skin, 0.5));
-      m.stroke(mx - P(2.5), my + P(0.6), mx - P(2.9), my + P(1.1), P(0.6), darken(skin, 0.4));
-  }
-
-  // Damage: bruises and blood.
-  if (tier >= 2 && hurt) m.paint(fx(17.5), P(17.5), P(1.6), P(1.3), mix(skin, C('purple', 0.3), 0.6));
-  if (tier >= 3 && hurt) {
-    m.stroke(fx(15.5), P(5), fx(16.5), P(11), P(0.8), C('blood', 0.5));
-    m.paint(fx(6), P(21.5), P(0.8), P(1.2), C('blood', 0.5));
-  }
-  if (tier >= 4 && hurt) {
-    m.stroke(fx(8.5), P(4.5), fx(7.8), P(10), P(0.9), C('blood', 0.45));
-    m.paint(fx(14.5), P(22.5), P(0.7), P(1.4), C('blood', 0.55));
-  }
-
-  // Hair: messy, wilder each tier.
-  m.ellipsoid(P(12 + turn * 0.4), P(6.4), P(4), P(8.8), P(5.4), P(7), HAIR, MAT.hair);
-  m.ellipsoid(P(4.2 + turn * 0.5), P(9.5), P(1.5), P(2), P(3.4), P(3), HAIR, MAT.hair);
-  m.ellipsoid(P(19.8 + turn * 0.5), P(9.5), P(1.5), P(2), P(3.4), P(3), HAIR, MAT.hair);
-  const tufts = [[5, 2.5], [8.5, 0.8], [12, 1.4], [15.5, 0.6], [19, 2.4]];
-  tufts.forEach(([x, y], i) => {
-    const wild = tier >= 2 && i % 2 === 0 ? -1.2 : 0;
-    m.capsule(P(x + turn * 0.4), P(5), P(5), P(x + (i % 2 ? 1.4 : -1.4) + turn * 0.4), P(y + wild), P(4), P(1.6), P(0.5), HAIR, MAT.hair);
-  });
-  for (let x = 7; x <= 17; x += 2.5) m.capsule(fx(x), P(5.5), P(7.5), fx(x + 0.8), P(8.4 + (x % 3)), P(8.5), P(1.2), P(0.6), HAIR, MAT.hair);
-
-  const c = m.render({ light: [-0.35, -0.45, 0.85], ambient: 0.45, aoStrength: 0.35, contrast: 1 });
-  if (dead) {
-    const z = G('yellow', 1);
-    for (const [x, y] of [[0, 0], [1, 0], [2, 0], [1, 1], [0, 2], [1, 2], [2, 2]]) c.set(Math.round(P(19)) + x, Math.round(P(1)) + y, z);
-  }
-  return c;
 }
 
 export function faceSheet() {
   const sheet = new PixelCanvas(FACE_W * 8, FACE_H * 6);
   const frames = [{ look: 0 }, { look: -1 }, { look: 1 }, { turn: 1, look: 1 }, { turn: -1, look: -1 }, { expr: 'ouch' }, { expr: 'grin' }, { expr: 'rampage' }];
   for (let tier = 0; tier < 5; tier++) {
-    frames.forEach((f, i) => sheet.blit(faceModel({ tier, ...f }), i * FACE_W, tier * FACE_H));
+    frames.forEach((f, i) => sheet.blit(faceFrame({ tier, ...f }), i * FACE_W, tier * FACE_H));
   }
-  sheet.blit(faceModel({ tier: 0, expr: 'god' }), 0, 5 * FACE_H);
-  sheet.blit(faceModel({ tier: 2, expr: 'dead' }), FACE_W, 5 * FACE_H);
+  sheet.blit(faceFrame({ tier: 0, expr: 'god' }), 0, 5 * FACE_H);
+  sheet.blit(faceFrame({ tier: 2, expr: 'dead' }), FACE_W, 5 * FACE_H);
   return sheet;
 }
 
-export default [
-  { name: 'face', out: 'assets/ui/face.png', draw: faceSheet, dither: 'fs' },
-  { name: 'alex-photo', out: 'assets/custom/alex.png', draw: alexPhotoPortrait, raw: true },
-];
+// ------------------------------------------------------------------ portrait
+// The title screen's ID-badge portrait: the same face at 36x45 with more
+// detail (two-tier bags, bloodshot eyes), drawn at 2x to fill 72x90.
 
-/**
- * The head-and-shoulders portrait shared by the drawn title portrait and the
- * photo version: collar and tie, neck, head, ears, then `face(m, P)` draws
- * the face, then the messy hair goes on top. Laid out at 72x90; k scales it.
- */
-function portrait(k, skin, face) {
-  const P = (v) => v * k;
-  const pts = (list) => list.map(([x, y]) => [P(x), P(y)]);
-  const m = new Model(P(72), P(90), { seed: 4242 });
-  const hair = HAIR;
-  // Shoulders, collar, loosened tie.
-  m.slab(pts([[0, 90], [2, 80], [16, 74], [36, 77], [56, 74], [70, 80], [72, 90]]), P(4), C('beige', 0.82), MAT.cloth, { bevel: P(4), thickness: P(3) });
-  m.capsule(P(36), P(62), P(4), P(36), P(78), P(4), P(8), P(9.5), darken(skin, 0.3), MAT.skin);
-  m.slab(pts([[23, 73], [35, 79], [29, 87], [20, 79]]), P(10), C('beige', 0.92), MAT.cloth, { bevel: P(1.5), thickness: P(1.5) });
-  m.slab(pts([[49, 73], [37, 79], [43, 87], [52, 79]]), P(10), C('beige', 0.92), MAT.cloth, { bevel: P(1.5), thickness: P(1.5) });
-  m.slab(pts([[33, 80], [40, 79], [39, 84], [34, 85]]), P(12), C('blood', 0.42), MAT.cloth, { bevel: P(1.5), thickness: P(1) });
-  m.slab(pts([[34, 84], [39, 83], [42, 90], [32, 90]]), P(11), C('blood', 0.38), MAT.cloth, { bevel: P(1.5), thickness: P(1) });
-  // Head, jaw, chin, ears.
-  m.ellipsoid(P(36), P(39), P(2), P(18), P(22.5), P(16), skin, MAT.skin);
-  m.ellipsoid(P(36), P(52), P(4), P(14.5), P(10.5), P(13), skin, MAT.skin);
-  m.sphere(P(36), P(59), P(9), P(6.2), skin, MAT.skin);
-  m.ellipsoid(P(17.6), P(42), 0, P(3.8), P(6.4), P(3.4), darken(skin, 0.06), MAT.skin);
-  m.ellipsoid(P(54.4), P(42), 0, P(3.8), P(6.4), P(3.4), darken(skin, 0.06), MAT.skin);
-  face(m, P);
-  // Messy hair.
-  m.ellipsoid(P(36), P(22), P(2), P(19.5), P(12.5), P(15.5), hair, MAT.hair);
-  m.ellipsoid(P(18.5), P(31), P(2), P(3.6), P(7.5), P(5), hair, MAT.hair);
-  m.ellipsoid(P(53.5), P(31), P(2), P(3.6), P(7.5), P(5), hair, MAT.hair);
-  const r = (n) => {
-    const v = Math.sin(n * 91.7 + 13.1) * 43758.5;
-    return v - Math.floor(v);
-  };
-  for (let n = 0; n < 16; n++) {
-    // Fringe falling forward over the forehead.
-    const x = 20 + n * 2.1;
-    m.capsule(P(x), P(16), P(13), P(x + (r(n) - 0.5) * 5), P(25 + r(n + 40) * 4), P(15), P(2.6), P(0.9), hair, MAT.hair);
-  }
-  for (let n = 0; n < 11; n++) {
-    // Bed-head strands sticking out of the top.
-    const a = -Math.PI / 2 + (n - 5) * 0.26 + (r(n + 80) - 0.5) * 0.3;
-    const x0 = 36 + Math.cos(a) * 12.5;
-    const y0 = 20 + Math.sin(a) * 8.5;
-    const len = 4 + r(n + 120) * 4;
-    m.capsule(P(x0), P(y0), P(8), P(x0 + Math.cos(a) * len), P(y0 + Math.sin(a) * len), P(6), P(2.2), P(0.7), hair, MAT.hair);
-  }
-  return m.render({ light: [-0.35, -0.42, 0.84], ambient: 0.4, aoStrength: 0.45, contrast: 1.05 });
-}
+const BIG = {
+  tufts: P([
+    '...........d....D...d...d...........',
+    '.........d.dd..dDd.dd..dd.d.........',
+    '........dddddDdDDdddddddddddd.......',
+    '.......dddddDDDdDdddddddddddd.......',
+  ]),
+  eyeL: ['VVVVVV', 'VeEppe', 'uVVVVu'],
+  eyeR: ['VVVVVV', 'eppEeV', 'uVVVVu'],
+  bags: ['ugGGgu', '.gggg.', '..VV..'],
+  browL: ['..hhhhhh', 'hhh.....'],
+  browR: ['hhhhhh..', '.....hhh'],
+  nose: P(['.St..', '.St..', '.Stu.', '.Stu.', 'SsStu', 'sSstU', 'uVsVu']),
+  moustache: P(['BBBBBBBBB']),
+  mouth: P(['uVVVVVVVu', 'V.......V']),
+};
 
-/**
- * The 72x90 ID-badge portrait for the title screen: same guy, more detail.
- * Heavy lids, bloodshot eyes and the famous two-tier bags.
- */
 export function alexPortrait() {
-  const skin = mix(C('skin', 0.72), C('olive', 0.6), 0.1);
-  const hair = HAIR;
-  const lid = darken(skin, 0.16);
-  const bag = mix(skin, mix(C('purple', 0.28), C('rust', 0.22), 0.4), 0.62);
-  const crease = mix(skin, C('purple', 0.1), 0.85);
-  return portrait(1, skin, (m) => {
-    m.ellipsoid(26, 47.5, 9.5, 6.4, 4.8, 5.8, skin, MAT.skin);
-    m.ellipsoid(46, 47.5, 9.5, 6.4, 4.8, 5.8, skin, MAT.skin);
-    m.ellipsoid(36, 32, 11.5, 14, 3.2, 4.8, skin, MAT.skin);
-    m.capsule(36, 34.5, 14, 36, 46.5, 18, 2.3, 3.2, skin, MAT.skin);
-    m.sphere(36, 47.5, 17, 3.6, lighten(skin, 0.03), MAT.skin);
-    m.dent(33.2, 49.6, 1.3, 0.9, 1.2);
-    m.dent(38.8, 49.6, 1.3, 0.9, 1.2);
-    // Stubble.
-    m.tint((x, y, c) => {
-      if (y < 50 || y > 66 || Math.abs(x - 36) > 16 || (Math.abs(x - 36) < 4 && y < 53)) return undefined;
-      const h = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
-      return h - Math.floor(h) < 0.45 ? mix(c, C('rust', 0.18), 0.28) : undefined;
-    });
-    // Eyes, lids and the bags.
-    for (const ex of [27.6, 44.4]) {
-      const out = ex < 36 ? -1 : 1;
-      m.paint(ex, 41, 7.6, 5, mix(skin, C('purple', 0.22), 0.32)); // dark circles
-      m.dent(ex, 38, 6, 3.4, 1.1);
-      // Puffy bags: two tiers of swollen crescents.
-      m.ellipsoid(ex + out * 0.3, 42.6, 12.8, 5.8, 2.3, 2.5, bag, MAT.skin);
-      m.ellipsoid(ex + out * 0.6, 46, 12, 4.8, 1.8, 2.1, mix(skin, bag, 0.7), MAT.skin);
-      m.stroke(ex - 5, 44.3, ex, 45.2, 1, crease);
-      m.stroke(ex, 45.2, ex + 5, 44.3, 1, crease);
-      m.stroke(ex - 3.8 + out * 0.6, 47.7, ex + 3.8 + out * 0.6, 47.7, 0.9, mix(skin, crease, 0.7));
-      // Bloodshot eye under a heavy lid.
-      m.paint(ex, 38.5, 4.5, 2.3, mix(C('beige', 0.94), C('flesh', 0.7), 0.12), MAT.eye);
-      m.paint(ex + 0.4, 38.7, 2, 2, C('rust', 0.32), MAT.eye);
-      m.paint(ex + 0.4, 38.7, 1, 1, C('gray', 0.05), MAT.eye);
-      m.dot(ex - 0.6, 37.9, C('beige', 1), MAT.eye);
-      m.dot(ex - out * 3.4, 39, C('blood', 0.6), MAT.eye);
-      m.dot(ex + out * 3.6, 38.4, C('blood', 0.55), MAT.eye);
-      m.paint(ex, 36.5, 5.1, 1.8, lid);
-      m.stroke(ex - 4.4, 37.6, ex + 4.4, 37.6, 0.8, darken(skin, 0.5));
-      // Droopy eyebrows.
-      m.stroke(ex - out * 5.4, 33.4, ex + out * 1.2, 32.2, 2, hair);
-      m.stroke(ex - out * 5.4, 33.4, ex - out * 6.6, 34.6, 1.5, hair);
-    }
-    // Flat, unimpressed mouth.
-    m.paint(36, 54, 6.4, 1, darken(skin, 0.1));
-    m.stroke(30, 55.2, 42, 55.2, 1.1, mix(darken(skin, 0.45), C('blood', 0.3), 0.3));
-    m.stroke(30, 55.2, 28.5, 56.4, 0.9, darken(skin, 0.35));
-    m.stroke(42, 55.2, 43.5, 56.4, 0.9, darken(skin, 0.35));
-    m.paint(36, 57, 4.5, 0.9, mix(skin, C('flesh', 0.6), 0.25));
+  const c = head(1.5, { tier: 1 });
+  stamp(c, BIG.tufts, 0, 0);
+  for (const [x, eye] of [[9, BIG.eyeL], [21, BIG.eyeR]]) {
+    stamp(c, P(BIG.bags), x, 21);
+    stamp(c, P(eye), x, 18);
+  }
+  stamp(c, P(BIG.browL), 7, 15);
+  stamp(c, P(BIG.browR), 21, 15);
+  stamp(c, BIG.nose, 15, 20);
+  stamp(c, BIG.moustache, 13, 28);
+  stamp(c, BIG.mouth, 13, 29);
+  const small = paint(c, {
+    blend: ['skin', 'rust', 'beige', 'blood'],
+    crisp: ['gray', 'concrete', 'purple', 'flesh'],
+    grain: 0.02,
+    seed: 4242,
   });
+  return small.scale(2);
 }
 
-/**
- * Alex's real face for the status bar and the title badge. His photo
- * (assets/custom/alex-closeup.png) is cropped too tight to use on its own, so it
- * goes onto the portrait's modelled head, under the hair, lined up by the eyes.
- * Saved in full colour as assets/custom/alex.png (216x270): the game shrinks it,
- * crunches it into the palette and adds the bags and bruises itself.
- */
-export function alexPhotoPortrait() {
-  const photo = loadPhoto(path.join(root, 'assets/custom/alex-closeup.png'));
-  const c = portrait(3, [158, 120, 104], (m, P) => {
-    // The photo is tilted: map its eyes onto the portrait's eyes.
-    const map = pointMap([[P(27.6), P(38.5)], [P(44.4), P(38.5)]], [[60, 85], [185, 60]]);
-    m.imprint(photo, P(36.6), P(47), P(15.2), P(20.5), map, { feather: P(4), level: 132 });
-  });
-  // More colour and softer highlights, so the skin survives the palette crunch.
-  return c.eachOpaque((x, y, [r, g, b]) => {
-    const l = r * 0.3 + g * 0.59 + b * 0.11;
-    const soft = (v) => (v < 190 ? v : 190 + (v - 190) * 0.45);
-    return [r, g, b].map((v) => Math.max(0, Math.min(255, soft(l + (v - l) * 1.4))));
-  });
-}
+export default [{ name: 'face', out: 'assets/ui/face.png', draw: faceSheet }];
