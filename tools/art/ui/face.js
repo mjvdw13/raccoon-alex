@@ -18,25 +18,30 @@ import { part, stamp, paint } from '../lib/pixels.js';
 export const FACE_W = 24;
 export const FACE_H = 30;
 
-const SKIN = [0.88, 0.79, 0.7, 0.61, 0.52, 0.43].map((t) => C('skin', t));
-const HAIR = [0.26, 0.18, 0.12, 0.07].map((t) => C('rust', t));
+// Pale, slightly pink skin: light to shadow.
+const SKIN = [1, 0.94, 0.88, 0.81, 0.73, 0.64].map((t) => C('skin', t));
+// Dead and grey.
+const PALE = [0.95, 0.88, 0.8, 0.72, 0.64, 0.56].map((t) => C('beige', t));
+const HAIR = [C('rust', 0.16), C('rust', 0.11), C('rust', 0.07), C('gray', 0.05)];
 const SHIRT = [0.97, 0.88, 0.76, 0.62].map((t) => C('beige', t));
 const TIE = [C('blood', 0.55), C('blood', 0.42), C('blood', 0.3)];
 
 const L = {
-  V: C('flesh', 0.28), // lids, creases, mouth line
-  e: C('beige', 0.9), // eye whites
-  E: C('flesh', 0.74), // bloodshot
-  p: C('rust', 0.1), // pupils
+  V: C('skin', 0.42), // lids, creases, mouth line
+  e: C('beige', 0.84), // eye whites
+  E: C('flesh', 0.8), // bloodshot
+  p: C('olive', 0.3), // hazel-green eyes
+  n: C('skin', 0.55), // nostrils
+  q: C('skin', 0.7), // lower lip
   P: C('blood', 0.45), // rampage pupils
-  g: C('skin', 0.46), // bags
-  G: C('rust', 0.3),
-  h: C('concrete', 0.1), // brows
+  g: C('skin', 0.68), // dark circles and bags
+  G: C('skin', 0.56),
+  h: C('concrete', 0.14), // thick dark brows
   k: C('gray', 0.07), // raccoon mask
   f: C('gray', 0.8), // pale fur above the mask
   w: C('beige', 0.95), // teeth
   r: C('blood', 0.15), // open mouth
-  B: C('rust', 0.3), // moustache
+  B: C('concrete', 0.2), // thin dark moustache
   l: C('blood', 0.5), // blood
   v: C('purple', 0.4), // bruise
   y: G('yellow', 1), // god-mode glow
@@ -83,7 +88,7 @@ function head(k, { turn = 0, tier = 0, pale = false } = {}) {
   const h = Math.round(FACE_H * k);
   const c = new PixelCanvas(w, h);
   const cx = 12 + turn * 0.5;
-  const skin = pale ? SKIN.map((col) => [...col].map((v, i) => (i === 2 ? v + 6 : v - 8))) : SKIN;
+  const skin = pale ? PALE : SKIN;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const u = (x + 0.5) / k;
@@ -106,8 +111,8 @@ function head(k, { turn = 0, tier = 0, pale = false } = {}) {
         if (e >= 0) col = pick(skin, e, 1);
       }
       // The face: a full, round oval that narrows a little to the jaw.
-      const taper = v > 15 ? 1 - 0.28 * ((v - 15) / 8.8) ** 2 : 1;
-      const f = lit(u, v, cx, 13.6, 8 * taper, 10.3);
+      const taper = v > 16 ? 1 - 0.16 * ((v - 16) / 8) ** 2 : 1;
+      const f = lit(u, v, cx, 13.8, 8.6 * taper, 10.4);
       if (f >= 0) {
         col = pick(skin, f);
         // Stubble on his jaw and upper lip: a darker grain, worse each tier.
@@ -120,7 +125,7 @@ function head(k, { turn = 0, tier = 0, pale = false } = {}) {
       const hl = lit(u, v, cx, 12.2, 8.8, 10.9);
       const side = Math.abs(u - cx);
       const hairline = side > 6.4 ? 11.2 : 7.6 + (side > 3.2 ? 0.5 : 0) - 0.4 * Math.cos(u * 2.1);
-      const fringe = v < 9.6 && [8.2, 11.3, 14.6].some((s) => Math.abs(u - (s + turn * 0.5)) < 0.45 + 0.3 / k);
+      const fringe = k > 1 && v < 9.6 && [8.2, 11.3, 14.6].some((s) => Math.abs(u - (s + turn * 0.5)) < 0.45 + 0.3 / k);
       if (hl >= 0 && (v < hairline || fringe)) col = pick(HAIR, hl);
       if (col) c.set(x, y, col);
     }
@@ -150,22 +155,24 @@ const SMALL = {
   eyeGod: { L: ['.VV.', 'VyYy'], R: ['.VV.', 'yYyV'] },
   eyeShut: ['....', 'VVVV'],
   // Bags under the eyes, growing each tier.
-  bags: [['ugGu'], ['gGGg'], ['gGGg', 'uggu'], ['gGGg', 'uggu'], ['GGGG', 'gGGg']],
+  bags: [['.gg.'], ['gggg'], ['gGGg', '.gg.'], ['gGGg', '.gg.'], ['GGGG', 'gGGg']],
   // The raccoon mask (tiers 3-4): pale fur, then a black band over both eyes.
   mask: [
     P(['....ffffffffffffffff....', '...kkkkkkkkkkkkkkkkkk...', '...kkkkkkkkkkkkkkkkkk...', '....kkkkkkkk.kkkkkkk....', '.....kkkk......kkkk.....']),
     P(['...fffffffffffffffffff..', '..kkkkkkkkkkkkkkkkkkkk..', '..kkkkkkkkkkkkkkkkkkkk..', '..kkkkkkkkkkkkkkkkkkkk..', '...kkkkkkk....kkkkkkk...', '....kkkk........kkkk....']),
   ],
+  // Thick, dark, low brows, pulled into a frown at the middle.
   brows: {
-    tired: { L: ['..hhh', 'hh...'], R: ['hhh..', '...hh'] },
-    worried: { L: ['...hh', 'hhh..'], R: ['hh...', '..hhh'] },
-    angry: { L: ['hhh..', '...hh'], R: ['..hhh', 'hh...'] },
-    raised: { L: ['.hhh.', 'h...h'], R: ['.hhh.', 'h...h'] },
+    tired: { L: ['hhh..', 'hhhhh'], R: ['..hhh', 'hhhhh'] },
+    worried: { L: ['..hhh', 'hhhh.'], R: ['hhh..', '.hhhh'] },
+    angry: { L: ['hh...', 'hhhhh'], R: ['...hh', 'hhhhh'] },
+    raised: { L: ['.hhhh', 'hh...'], R: ['hhhh.', '...hh'] },
   },
-  nose: P(['.St', '.St', '.Su', 'SsU', 'uVu']),
+  // A long, broad nose with a round tip.
+  nose: P(['.St.', '.St.', '.Stu', 'sSSu', 'SSsu', 'nUun']),
   moustache: P(['BBBBBB']),
   mouth: {
-    neutral: ['uVVVVu', 'V....V'],
+    neutral: ['VVVVVV', '.qqqq.'],
     ouch: ['.VrrV.', '.VrrV.'],
     grin: ['VwwwwV', '.VVVV.'],
     god: ['VwwwyV', '.VVVV.'],
@@ -209,15 +216,15 @@ export function faceFrame(o = {}) {
   at(P(SMALL.brows[brow].R), 14, by - (masked ? 1 : 0));
 
   // Nose, moustache, mouth.
-  at(SMALL.nose, 11, 14);
+  at(SMALL.nose, 10, 13);
   at(SMALL.moustache, 9, 19);
-  at(P(SMALL.mouth[dead ? 'dead' : expr in SMALL.mouth ? expr : 'neutral']), 9, 20);
+  at(P(SMALL.mouth[dead ? 'dead' : expr in SMALL.mouth ? expr : 'neutral']), 9, 21);
 
   // Damage: a bruise, then blood from the forehead and the lip.
   if (hurt && tier >= 2) at(SMALL.bruise, 16, 16);
   if (hurt && tier >= 3) {
     at(P(['l..', 'l..', '.l.', '.l.', '.l.', '..l']), 15, 4);
-    at(P(['l', 'l']), 8, 21);
+    at(P(['l', 'l']), 8, 22);
   }
   if (hurt && tier >= 4) {
     at(P(['l.', 'l.', 'l.', 'l.', '.l']), 8, 3);
@@ -254,14 +261,14 @@ const BIG = {
     '........dddddDdDDdddddddddddd.......',
     '.......dddddDDDdDdddddddddddd.......',
   ]),
-  eyeL: ['VVVVVV', 'VeEppe', 'uVVVVu'],
-  eyeR: ['VVVVVV', 'eppEeV', 'uVVVVu'],
-  bags: ['ugGGgu', '.gggg.', '..VV..'],
-  browL: ['..hhhhhh', 'hhh.....'],
-  browR: ['hhhhhh..', '.....hhh'],
-  nose: P(['.St..', '.St..', '.Stu.', '.Stu.', 'SsStu', 'sSstU', 'uVsVu']),
-  moustache: P(['BBBBBBBBB']),
-  mouth: P(['uVVVVVVVu', 'V.......V']),
+  eyeL: ['VVVVVV', 'VeppeE', '.uuuu.'],
+  eyeR: ['VVVVVV', 'EeppeV', '.uuuu.'],
+  bags: ['gggggg', '.gGGg.', '..gg..'],
+  browL: ['hhhhh...', 'hhhhhhhh', '.hhhhhhh'],
+  browR: ['...hhhhh', 'hhhhhhhh', 'hhhhhhh.'],
+  nose: P(['..St..', '..St..', '..Stu.', '..Stu.', '.sStu.', '.SSstu', 'sSSstu', 'uSSsuU', 'nUuuUn']),
+  moustache: P(['BBBBBBBBBBBB']),
+  mouth: P(['.VVVVVVVV.', 'V.uuuuuu.V']),
 };
 
 export function alexPortrait() {
@@ -273,9 +280,9 @@ export function alexPortrait() {
   }
   stamp(c, P(BIG.browL), 7, 15);
   stamp(c, P(BIG.browR), 21, 15);
-  stamp(c, BIG.nose, 15, 20);
-  stamp(c, BIG.moustache, 13, 28);
-  stamp(c, BIG.mouth, 13, 29);
+  stamp(c, BIG.nose, 15, 19);
+  stamp(c, BIG.moustache, 12, 29);
+  stamp(c, BIG.mouth, 13, 31);
   const small = paint(c, {
     blend: ['skin', 'rust', 'beige', 'blood'],
     crisp: ['gray', 'concrete', 'purple', 'flesh'],
