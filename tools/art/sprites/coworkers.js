@@ -1,6 +1,6 @@
 // Alex's coworkers: friendly NPCs who are also stuck in the office at 3 AM.
-// Each one is hand-drawn pixel art (people/), drawn from their photo in
-// assets/custom/coworkers/: 64x64 frames, shown 1:1 in the game.
+// Each one is hand-drawn pixel art (people/): 64x64 frames, shown 1:1 in the
+// game.
 import { Model, MAT } from '../lib/model.js';
 import { sheet } from '../lib/sprite.js';
 import { gusSheet } from './people/gus.js';

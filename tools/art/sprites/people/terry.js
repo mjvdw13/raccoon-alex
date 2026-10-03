@@ -1,5 +1,4 @@
-// Terry, hand-drawn from his photo (assets/custom/coworkers/terry-photo.png):
-// shaved head, dark aviator sunglasses, stubble and a half-smile, a red mesh
+// Terry, hand-drawn: shaved head, dark aviator sunglasses, stubble and a half-smile, a red mesh
 // pinnie with black binding over a maroon tee. Khaki trousers and grey
 // trainers. 64x64 frames, drawn 1:1, finished with paint() so the shading
 // reads as soft painted pixels rather than flat cel bands.

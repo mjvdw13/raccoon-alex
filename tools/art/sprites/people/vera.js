@@ -1,6 +1,5 @@
-// Vera, hand-drawn from her photo (assets/custom/coworkers/vera-photo.png)
-// and kept entirely in greyscale, like she stepped out of an old photo:
-// straight shoulder-length hair with side-swept bangs, a smirk, a black
+// Vera, hand-drawn and kept entirely in greyscale, like she stepped out of an
+// old photo: straight shoulder-length hair with side-swept bangs, a smirk, a black
 // scoop-neck top, dark jeans. Unimpressed with everything, arms crossed.
 // 64x64 frames, drawn 1:1, finished with paint() so the shading reads as
 // soft painted pixels rather than flat cel bands.

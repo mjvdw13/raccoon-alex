@@ -1,8 +1,8 @@
-// Dale, hand-drawn from his photo (assets/custom/coworkers/dale-full.png): head
-// thrown back, eyes shut, mouth open in a full-body sigh. Green SPACE RANGER
-// ACADEMY tee, navy shorts, black socks and sneakers, an orange-and-white
-// ball cradled at his hip. 64x64 frames, drawn 1:1, finished with paint() so
-// the shading reads as soft painted pixels rather than flat cel bands.
+// Dale, hand-drawn: head thrown back, eyes shut, mouth open in a full-body
+// sigh. Green SPACE RANGER ACADEMY tee, navy shorts, black socks and
+// sneakers, an orange-and-white ball cradled at his hip. 64x64 frames, drawn
+// 1:1, finished with paint() so the shading reads as soft painted pixels
+// rather than flat cel bands.
 //
 // Frames: 0 sighing at the ceiling, 1 deep breath in, 2 ...and out,
 // 3 react "UGH" (arm flung out), 4 react facepalm.

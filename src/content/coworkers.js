@@ -2,9 +2,8 @@ import { defineNpc } from '../engine/defs.js';
 
 // Alex's coworkers, also stuck in the office at 3 AM. They're friendlies: they
 // can't be hurt, monsters leave them alone, and they wander around their spot.
-// Bump into one (or press Use on them) and they react. Their faces come from
-// the photos in assets/custom/coworkers/. Sprites are hand-drawn pixel art
-// (tools/art/sprites/people/), 64x64 frames shown 1:1.
+// Bump into one (or press Use on them) and they react. Sprites are hand-drawn
+// pixel art (tools/art/sprites/people/), 64x64 frames shown 1:1.
 const S = (name) => ({ src: `assets/sprites/coworkers/${name}.png`, frameWidth: 64, frameHeight: 64 });
 
 export default [

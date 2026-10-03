@@ -1,8 +1,8 @@
-// Gus, hand-drawn from photos of his costume: a felt pumpkin hood with a
+// Gus, hand-drawn: a felt pumpkin hood with a
 // tall green stem, a round stuffed pumpkin body with a black felt
 // jack-o'-lantern face and a leafy green collar, a heather-navy t-shirt
 // underneath, glasses, a light moustache and stubble, and a black desk phone
-// at his ear (assets/custom/coworkers/gus-costume.png).
+// at his ear.
 // 64x64 frames, drawn 1:1, finished with paint() so the shading reads as
 // soft painted pixels rather than flat cel bands.
 //
