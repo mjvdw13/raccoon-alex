@@ -1,0 +1,45 @@
+// The RACCOON ALEX content pack: everything that makes this game *this* game.
+// The engine (src/engine) knows nothing about Alex; it only reads this pack.
+import palette from './palette.js';
+import strings from './strings.js';
+import config from './config.js';
+import hero from './hero.js';
+import textures from './textures.js';
+import { fonts, images, sheets } from './ui.js';
+import ammo from './ammo.js';
+import weapons from './weapons/index.js';
+import monsters from './monsters/index.js';
+import coworkers from './coworkers.js';
+import items from './items/index.js';
+import decorations from './decor.js';
+import { effects, projectiles } from './effects.js';
+import sounds from './sounds.js';
+import songs from './music/index.js';
+import legend from './levels/legend.js';
+import { levels, episodes } from './levels/index.js';
+import cheats from './cheats.js';
+
+export default {
+  game: { id: 'raccoon-alex', title: 'RACCOON ALEX', storagePrefix: 'raccoon-alex' },
+  palette,
+  strings,
+  config,
+  hero,
+  textures,
+  fonts,
+  images,
+  sheets,
+  ammo,
+  weapons,
+  things: [...monsters, ...coworkers, ...items, ...decorations, ...effects, ...projectiles],
+  sounds,
+  songs,
+  legend,
+  levels,
+  episodes,
+  cheats,
+  // Custom behaviour hooks: defineAction / defineAttack / definePickup results.
+  actions: [],
+  attacks: [],
+  pickups: [],
+};

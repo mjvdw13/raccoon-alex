@@ -1,0 +1,412 @@
+/**
+ * Content definition helpers. Every piece of game content (textures, weapons,
+ * monsters, items, levels, sounds, music...) is a plain object passed through
+ * one of these `define*` functions, which fill in defaults and normalize
+ * shorthand so the engine can rely on a single shape.
+ *
+ * These are pure functions with no browser dependencies, so the same content
+ * can be loaded by the game, by Node tools (tools/validate.mjs) and by tests.
+ *
+ * See MODDING.md for walkthroughs.
+ */
+
+/**
+ * @typedef {number[] | {frames:number[], fps?:number, loop?:boolean, fireAt?:number|number[],
+ *   fullbright?: boolean|number[], events?: Record<number,string>, durations?: number[]}} AnimSpec
+ *   Frame numbers are indices into the sprite sheet. `fireAt`/`fullbright`/`events`
+ *   refer to positions within this animation's `frames` list.
+ *
+ * @typedef {{src:string, frameWidth?:number, frameHeight?:number}} SheetSpec
+ *
+ * @typedef {{kind:string, damage?:number|number[], pellets?:number, spread?:number, range?:number,
+ *   projectile?:string, count?:number, sound?:string, hitSound?:string, missSound?:string,
+ *   puff?:string, berserkMultiplier?:number, [key:string]:any}} AttackSpec
+ *   kind: 'hitscan' | 'projectile' | 'melee' | any custom kind registered with defineAttack().
+ */
+
+const ANIM_DEFAULTS = {
+  idle: { fps: 4, loop: true },
+  walk: { fps: 6, loop: true },
+  fly: { fps: 10, loop: true },
+  attack: { fps: 8, loop: false },
+  melee: { fps: 8, loop: false },
+  pain: { fps: 8, loop: false },
+  death: { fps: 8, loop: false },
+  gib: { fps: 10, loop: false },
+  explode: { fps: 10, loop: false },
+  fire: { fps: 12, loop: false },
+  ready: { fps: 4, loop: true },
+  react: { fps: 6, loop: true },
+};
+
+/**
+ * Normalize an animation spec into
+ * `{frames, durations, loop, fullbright[], events[], total}`.
+ * @param {AnimSpec|number|null|undefined} spec
+ */
+export function normalizeAnim(spec, defaults = {}) {
+  if (spec == null) return null;
+  if (typeof spec === 'number') spec = [spec];
+  if (Array.isArray(spec)) spec = { frames: spec };
+  if (!Array.isArray(spec.frames) || spec.frames.length === 0) {
+    throw new Error('Animation needs a non-empty "frames" list');
+  }
+  const frames = spec.frames.map((f) => Number(f));
+  const fps = spec.fps ?? defaults.fps ?? 8;
+  const durations = spec.durations ? spec.durations.map(Number) : frames.map(() => 1 / fps);
+  const fb = spec.fullbright;
+  const fullbright = frames.map((_, i) => fb === true || (Array.isArray(fb) && fb.includes(i)));
+  const events = frames.map(() => null);
+  if (spec.fireAt !== undefined) for (const i of [].concat(spec.fireAt)) events[i] = 'fire';
+  if (spec.events) for (const [k, v] of Object.entries(spec.events)) events[Number(k)] = v;
+  const total = durations.reduce((a, b) => a + b, 0);
+  return { frames, durations, loop: spec.loop ?? defaults.loop ?? false, fullbright, events, total };
+}
+
+function normalizeAnims(anims = {}) {
+  const out = {};
+  for (const [name, spec] of Object.entries(anims)) {
+    out[name] = normalizeAnim(spec, ANIM_DEFAULTS[name] ?? {});
+  }
+  return out;
+}
+
+function normalizeSheet(sheet, id) {
+  if (!sheet) return null;
+  if (typeof sheet === 'string') return { ref: sheet };
+  return { id: sheet.id ?? id, src: sheet.src, frameWidth: sheet.frameWidth ?? 0, frameHeight: sheet.frameHeight ?? 0 };
+}
+
+function requireId(def, what) {
+  if (!def || typeof def !== 'object') throw new Error(`${what}: definition must be an object`);
+  if (typeof def.id !== 'string' || !def.id) throw new Error(`${what}: missing string "id"`);
+}
+
+/** Normalize an attack: allow plain numbers and fill per-kind defaults. */
+export function normalizeAttack(spec) {
+  if (!spec) return null;
+  const a = { ...spec };
+  if (!a.kind) throw new Error('Attack needs a "kind" (hitscan, projectile, melee or a custom kind)');
+  if (a.kind === 'hitscan') {
+    a.pellets ??= 1;
+    a.spread ??= 0;
+    a.range ??= 48;
+    a.damage ??= [5, 15];
+  } else if (a.kind === 'melee') {
+    a.range ??= 1.1;
+    a.damage ??= [2, 20];
+  } else if (a.kind === 'projectile') {
+    a.count ??= 1;
+    a.spread ??= 0;
+  }
+  return a;
+}
+
+// ---------------------------------------------------------------- textures
+
+/**
+ * A wall/floor/ceiling/sky texture. Walls and flats must be power-of-two sized
+ * (64x64 recommended). Animated textures are horizontal strips of `frames`
+ * square frames.
+ * @param {{id:string, src:string, frames?:number, fps?:number, sky?:boolean}} def
+ */
+export function defineTexture(def) {
+  requireId(def, 'Texture');
+  return { frames: 1, fps: 4, sky: false, ...def, type: 'texture' };
+}
+
+/** A sprite sheet shared by several things. @param {{id:string} & SheetSpec} def */
+export function defineSheet(def) {
+  requireId(def, 'Sheet');
+  return { frameWidth: 0, frameHeight: 0, ...def, type: 'sheet' };
+}
+
+/** A standalone UI image (title screen, status bar...). */
+export function defineImage(def) {
+  requireId(def, 'Image');
+  return { ...def, type: 'image' };
+}
+
+/**
+ * A bitmap font: a PNG grid of cells starting at character `first` (default 32).
+ * @param {{id:string, src:string, cellW:number, cellH:number, first?:number, spacing?:number,
+ *   spaceWidth?:number, lineHeight?:number, upper?:boolean, mono?:boolean}} def
+ */
+export function defineFont(def) {
+  requireId(def, 'Font');
+  return { first: 32, spacing: 1, ...def, type: 'font' };
+}
+
+// ---------------------------------------------------------------- inventory
+
+/**
+ * An ammo type. `max` is the carry limit, `backpackMax` the limit after a backpack.
+ * @param {{id:string, name:string, short?:string, max:number, backpackMax?:number}} def
+ */
+export function defineAmmo(def) {
+  requireId(def, 'Ammo');
+  return { short: def.name?.slice(0, 4).toUpperCase(), backpackMax: def.max * 2, ...def, type: 'ammo' };
+}
+
+/**
+ * A player weapon.
+ * @param {{id:string, name:string, slot:number, ammo?:string|null, ammoPerShot?:number,
+ *   sheet: SheetSpec, anims: {idle:AnimSpec, fire:AnimSpec}, fire: AttackSpec,
+ *   offset?:[number,number], flashLight?:number, noise?:boolean, priority?:number,
+ *   accurateFirstShot?:boolean, sounds?:Record<string,string>, bob?:number}} def
+ */
+export function defineWeapon(def) {
+  requireId(def, 'Weapon');
+  if (typeof def.slot !== 'number') throw new Error(`Weapon "${def.id}": needs a numeric "slot"`);
+  return {
+    ammo: null,
+    ammoPerShot: 1,
+    offset: [0, 0],
+    flashLight: 0,
+    noise: true,
+    priority: def.slot,
+    accurateFirstShot: false,
+    bob: 1,
+    sounds: {},
+    ...def,
+    type: 'weapon',
+    sheet: normalizeSheet(def.sheet, `weapon:${def.id}`),
+    anims: normalizeAnims(def.anims),
+    fire: normalizeAttack(def.fire),
+  };
+}
+
+// ---------------------------------------------------------------- things
+
+function baseThing(def, kind, defaults) {
+  requireId(def, kind);
+  const merged = {
+    name: def.id,
+    radius: 0.25,
+    height: 0.8,
+    z: 0,
+    scale: 1,
+    solid: false,
+    shootable: false,
+    health: 0,
+    fullbright: false,
+    renderStyle: 'normal',
+    sounds: {},
+    hooks: {},
+    ...defaults,
+    ...def,
+  };
+  merged.kind = kind;
+  merged.type = 'thing';
+  merged.sheet = normalizeSheet(def.sheet, def.id);
+  merged.anims = normalizeAnims(def.anims);
+  return merged;
+}
+
+/**
+ * A monster. Movement speed is in tiles per second; cooldowns in seconds.
+ * @param {{id:string, name?:string, glyph?:string, sheet:SheetSpec, anims:Record<string,AnimSpec>,
+ *   health:number, speed?:number, radius?:number, height?:number, painChance?:number,
+ *   attack?:AttackSpec, melee?:AttackSpec, cooldown?:[number,number], reactionTime?:number,
+ *   sightRange?:number, drops?:(string|{item:string, chance?:number})[], mass?:number,
+ *   splashImmune?:boolean, boss?:boolean, sounds?:Record<string,string>,
+ *   hooks?:Record<string,Function>}} def
+ */
+export function defineMonster(def) {
+  const m = baseThing(def, 'monster', {
+    solid: true,
+    shootable: true,
+    health: 20,
+    speed: 2,
+    radius: 0.3,
+    height: 0.85,
+    painChance: 0.5,
+    reactionTime: 0.4,
+    cooldown: [1, 2.5],
+    sightRange: 40,
+    drops: [],
+    mass: 100,
+    countKill: true,
+    bleeds: true,
+    infighting: true,
+    splashImmune: false,
+    boss: false,
+  });
+  m.attack = normalizeAttack(def.attack);
+  m.melee = normalizeAttack(def.melee);
+  m.drops = (m.drops ?? []).map((d) => (typeof d === 'string' ? { item: d, chance: 1 } : { chance: 1, ...d }));
+  m.gibHealth ??= -m.health;
+  return m;
+}
+
+/**
+ * A friendly character, such as a coworker. Friendlies can't be hurt or
+ * targeted: bullets, projectiles and explosions pass through them. They idle,
+ * wander up to `wander` tiles from where they were placed (staying out of
+ * doorways, narrow passages and hazards), and react when the player bumps into
+ * them or uses them: they turn to the player, play `react` and say one of
+ * their `lines`.
+ * @param {{id:string, name:string, glyph?:string, sheet:SheetSpec,
+ *   anims:{idle:AnimSpec, walk?:AnimSpec, react?:AnimSpec}, lines?:string[],
+ *   wander?:number, speed?:number, idleTime?:[number,number], reactTime?:number,
+ *   reactCooldown?:number, bubble?:string, sounds?:{react?:string},
+ *   hooks?:{onReact?:Function}}} def
+ */
+export function defineNpc(def) {
+  return baseThing(def, 'npc', {
+    solid: true,
+    shootable: false,
+    radius: 0.28,
+    height: 0.85,
+    speed: 1.1,
+    wander: 3,
+    idleTime: [2, 5],
+    reactTime: 1.8,
+    reactCooldown: 2.5,
+    lines: [],
+  });
+}
+
+/**
+ * A pickup. `pickup` effects: health, maxHealth, armor, armorClass, maxArmor, ammo{},
+ * weapon, key, powerup, duration, backpack, map. Add new ones with definePickup().
+ * @param {{id:string, name?:string, glyph?:string, sheet:SheetSpec, anims?:Record<string,AnimSpec>,
+ *   pickup: Record<string, any>, message?:string, sound?:string, countItem?:boolean,
+ *   hooks?:{onPickup?:Function}}} def
+ */
+export function defineItem(def) {
+  const it = baseThing(def, 'item', { radius: 0.3, height: 0.4, countItem: false, sound: 'item', pickup: {} });
+  if (!it.anims.idle) it.anims.idle = normalizeAnim([0], ANIM_DEFAULTS.idle);
+  return it;
+}
+
+/**
+ * Scenery: lamps, plants, barrels... Solid decorations block movement.
+ * Shootable ones with `health` die (and optionally `explode`).
+ * @param {{id:string, glyph?:string, sheet:SheetSpec, anims?:Record<string,AnimSpec>, solid?:boolean,
+ *   radius?:number, height?:number, z?:number, hanging?:boolean, health?:number,
+ *   explode?:{radius:number, damage:number, sound?:string}}} def
+ */
+export function defineDecoration(def) {
+  const d = baseThing(def, 'decoration', { radius: 0.25, height: 0.8 });
+  if (d.health > 0) d.shootable = def.shootable ?? true;
+  if (!d.anims.idle) d.anims.idle = normalizeAnim([0], ANIM_DEFAULTS.idle);
+  return d;
+}
+
+/**
+ * A projectile (fireballs, rockets...). Speed in tiles/second.
+ * @param {{id:string, sheet:SheetSpec, anims:{fly:AnimSpec, explode?:AnimSpec}, speed?:number,
+ *   damage?:number|number[], radius?:number, splash?:{radius:number, damage:number},
+ *   gravity?:number, z?:number, sounds?:{fire?:string, explode?:string}, trail?:string}} def
+ */
+export function defineProjectile(def) {
+  const p = baseThing(def, 'projectile', {
+    speed: 10,
+    damage: [5, 20],
+    radius: 0.12,
+    height: 0.25,
+    z: 0.4,
+    fullbright: true,
+    gravity: 0,
+    splash: null,
+  });
+  return p;
+}
+
+/**
+ * A short-lived visual effect (bullet puffs, blood, explosions). It plays its
+ * `idle` animation once and disappears.
+ */
+export function defineEffect(def) {
+  const e = baseThing(def, 'effect', { rise: 0, fullbright: false });
+  if (!e.anims.idle) throw new Error(`Effect "${def.id}": needs anims.idle`);
+  e.anims.idle.loop = false;
+  return e;
+}
+
+// ---------------------------------------------------------------- audio
+
+/**
+ * A sound effect: either synthesized (`synth` parameters, see audio/synth.js)
+ * or loaded from a file (`src`).
+ * @param {{id:string, synth?:object, src?:string, volume?:number, pitchVariance?:number, priority?:number}} def
+ */
+export function defineSound(def) {
+  requireId(def, 'Sound');
+  if (!def.synth && !def.src) throw new Error(`Sound "${def.id}": needs "synth" or "src"`);
+  return { volume: 1, pitchVariance: 0, ...def, type: 'sound' };
+}
+
+/**
+ * A music track: a pattern-based song (see audio/music.js) or an audio file (`src`).
+ * @param {{id:string, bpm?:number, src?:string}} def
+ */
+export function defineSong(def) {
+  requireId(def, 'Song');
+  return { bpm: 120, stepsPerBeat: 4, volume: 1, ...def, type: 'song' };
+}
+
+// ---------------------------------------------------------------- world
+
+/**
+ * A level. `tiles` is an ASCII grid (one string per row) of tile glyphs;
+ * `things` is an optional overlay grid of the same size for monsters/items/
+ * player starts (space or '.' = nothing). Glyphs come from the shared legend
+ * (content/levels/legend.js) and can be overridden per level via `legend` and
+ * `thingLegend`.
+ * @param {{id:string, name:string, tiles:string[], things?:string[], legend?:object,
+ *   thingLegend?:object, list?:object[], triggers?:object[], music?:string, sky?:string,
+ *   fog?:number, par?:number, next?:string, secretNext?:string, defaults?:object}} def
+ */
+export function defineLevel(def) {
+  requireId(def, 'Level');
+  if (!Array.isArray(def.tiles) || def.tiles.length === 0) throw new Error(`Level "${def.id}": needs a "tiles" grid`);
+  return {
+    name: def.id,
+    things: null,
+    legend: {},
+    thingLegend: {},
+    list: [],
+    triggers: [],
+    fog: 0.3,
+    par: 0,
+    defaults: {},
+    ...def,
+    type: 'level',
+  };
+}
+
+/**
+ * An episode: an ordered list of level ids plus an optional finale.
+ * @param {{id:string, name:string, levels:string[], finale?:object}} def
+ */
+export function defineEpisode(def) {
+  requireId(def, 'Episode');
+  if (!Array.isArray(def.levels) || def.levels.length === 0) throw new Error(`Episode "${def.id}": needs "levels"`);
+  return { ...def, type: 'episode' };
+}
+
+/**
+ * A cheat code typed during play.
+ * @param {{code:string, name?:string, run:(game:any, world:any)=>string|void}} def
+ */
+export function defineCheat(def) {
+  if (!def?.code || typeof def.run !== 'function') throw new Error('Cheat needs "code" and "run"');
+  return { name: def.code, ...def, type: 'cheat' };
+}
+
+/** A custom trigger action: `fn(world, params, context)`. */
+export function defineAction(name, fn) {
+  return { name, fn, type: 'action' };
+}
+
+/** A custom attack kind: `fn(world, attacker, spec, angle)`. */
+export function defineAttack(name, fn) {
+  return { name, fn, type: 'attack' };
+}
+
+/** A custom pickup effect: `fn(world, player, value, item) => boolean` (true if consumed). */
+export function definePickup(name, fn) {
+  return { name, fn, type: 'pickup' };
+}

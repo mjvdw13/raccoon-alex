@@ -1,0 +1,8 @@
+node_modules/
+tools/art/out/
+.smoke/
+*.log
+.DS_Store
+# Photos of real people stay on your own computer (see assets/custom/README.md).
+assets/custom/*
+!assets/custom/README.md

@@ -1,0 +1,109 @@
+// Tile flags.
+export const F_SOLID = 1;
+export const F_DOOR = 2;
+export const F_SKY = 4;
+export const F_SECRET = 8;
+export const F_DAMAGE = 16;
+export const F_EXIT = 32;
+export const F_USE = 64;
+export const F_VOID = 128;
+
+/** Light effects a tile can have (Doom sector light specials). */
+export const LIGHT_FX = { none: 0, flicker: 1, strobe: 2, glow: 3, fire: 4, blink: 5 };
+
+/**
+ * A door living in one tile. The door panel is a thin plane through the tile
+ * centre: `axis: 'x'` means the plane is at constant x (you walk through it
+ * along the x axis); `'y'` means constant y.
+ */
+export class Door {
+  constructor(spec) {
+    this.x = spec.x;
+    this.y = spec.y;
+    this.tex = spec.tex;
+    this.jamb = spec.jamb ?? -1;
+    this.axis = spec.axis ?? 'x';
+    this.style = spec.style ?? 'slide'; // 'slide' | 'split'
+    this.lock = spec.lock ?? null; // key id, 'remote' (triggers only) or null
+    this.secret = !!spec.secret;
+    this.stayOpen = !!spec.stayOpen;
+    this.tag = spec.tag ?? null;
+    this.speed = spec.speed ?? 1.6; // fraction per second
+    this.wait = spec.wait ?? 4;
+    this.sounds = spec.sounds ?? {};
+    this.open = 0;
+    this.state = 'closed'; // closed | opening | open | closing
+    this.timer = 0;
+  }
+
+  get passable() {
+    return this.open >= 0.85;
+  }
+}
+
+/** The runtime grid for a level. All per-tile data lives in flat typed arrays. */
+export class TileMap {
+  constructor(w, h) {
+    this.w = w;
+    this.h = h;
+    const n = w * h;
+    this.flags = new Uint16Array(n);
+    this.wallTex = new Int16Array(n).fill(-1);
+    this.floorTex = new Int16Array(n).fill(-1);
+    this.ceilTex = new Int16Array(n).fill(-1);
+    this.baseLight = new Uint8Array(n);
+    this.light = new Uint8Array(n);
+    this.lightFx = new Uint8Array(n);
+    this.lightGroup = new Int32Array(n).fill(-1);
+    this.damage = new Uint8Array(n);
+    this.doorIndex = new Int16Array(n).fill(-1);
+    this.tag = new Int16Array(n).fill(-1);
+    this.seen = new Uint8Array(n);
+    /** @type {Door[]} */
+    this.doors = [];
+    /** tag name -> tile indices */
+    this.tags = new Map();
+    this.tagNames = [];
+    /** tile index -> {actions, switchTo, repeat, used} for usable walls */
+    this.uses = new Map();
+  }
+
+  index(x, y) {
+    return y * this.w + x;
+  }
+
+  inBounds(x, y) {
+    return x >= 0 && y >= 0 && x < this.w && y < this.h;
+  }
+
+  /** Door object at a tile, or null. */
+  doorAt(x, y) {
+    if (!this.inBounds(x, y)) return null;
+    const d = this.doorIndex[y * this.w + x];
+    return d >= 0 ? this.doors[d] : null;
+  }
+
+  /** True if the tile blocks movement (walls, void, closed doors, outside the map). */
+  blocks(x, y) {
+    if (x < 0 || y < 0 || x >= this.w || y >= this.h) return true;
+    const i = y * this.w + x;
+    const f = this.flags[i];
+    if (f & F_SOLID) return true;
+    if (f & F_DOOR) return !this.doors[this.doorIndex[i]].passable;
+    return false;
+  }
+
+  /** True if the tile blocks sight/bullets. Doors block until mostly open. */
+  blocksSight(x, y) {
+    if (x < 0 || y < 0 || x >= this.w || y >= this.h) return true;
+    const i = y * this.w + x;
+    const f = this.flags[i];
+    if (f & F_SOLID) return true;
+    if (f & F_DOOR) return this.doors[this.doorIndex[i]].open < 0.6;
+    return false;
+  }
+
+  tilesWithTag(name) {
+    return this.tags.get(name) ?? [];
+  }
+}
